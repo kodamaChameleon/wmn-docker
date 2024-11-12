@@ -1,4 +1,4 @@
-<img src="./wmn-docker.png" height=400>  
+<img src="./wmn-docker.png">  
 
 ![Python](https://img.shields.io/badge/Python-3.10.12-yellow.svg?logo=python) <!-- GEN:Django -->![Docker](https://img.shields.io/badge/Docker-24.0.7-blue.svg?logo=docker)<!-- GEN:stop -->
 
