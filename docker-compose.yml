@@ -1,0 +1,38 @@
+version: "3.8"
+services:
+
+  api:
+    image: kodamachameleon/whatsmyname:latest
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+    volumes:
+      - wmn-db-users:/home
+    networks:
+      - wmn-net
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+
+  celery_worker:
+    image: kodamachameleon/whatsmyname:latest
+    command: celery -A utils.tasks worker --loglevel=info
+    env_file: .env
+    environment:
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+    networks:
+      - wmn-net
+
+  redis:
+    image: "redis:alpine"
+    networks:
+      - wmn-net
+
+volumes:
+  wmn-db-users:
+
+networks:
+  wmn-net:
+    driver: bridge

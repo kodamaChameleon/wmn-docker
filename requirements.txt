@@ -1,0 +1,10 @@
+fastapi
+fastapi-limiter
+uvicorn
+celery
+redis
+requests
+aiohttp
+pyjwt
+passlib
+cryptography

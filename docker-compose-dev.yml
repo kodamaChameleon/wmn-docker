@@ -1,0 +1,40 @@
+version: "3.8"
+services:
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+    volumes:
+      - wmn-db-users:/home
+      - ./app:/app
+    networks:
+      - wmn-net
+
+  celery_worker:
+    build: .
+    command: celery -A utils.tasks worker --loglevel=info
+    env_file: .env
+    environment:
+      - CELERY_BROKER_URL=${REDIS_URL}
+      - CELERY_RESULT_BACKEND=${REDIS_URL}
+    volumes:
+      - ./app:/app
+    networks:
+      - wmn-net
+
+  redis:
+    image: "redis:alpine"
+    networks:
+      - wmn-net
+
+volumes:
+  wmn-db-users:
+
+networks:
+  wmn-net:
+    driver: bridge
