@@ -61,6 +61,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         
         # Non-existant user
         if user_id is None:
+            logger.error(f"No user found for token: '{token}'")
             raise HTTPException(status_code=401, detail="Invalid authentication credentials")
 
         token_data = {"user_id": user_id}
@@ -71,7 +72,8 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
 
     # Unknown error
-    except Exception:
+    except Exception as e:
+        logger.error(f"Unknown authentication error :{e}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication error"
