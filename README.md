@@ -1,14 +1,12 @@
 <img src="./wmn-docker.png">  
 
-![Python](https://img.shields.io/badge/Python-3.10.12-yellow.svg?logo=python) <!-- GEN:Django -->![Docker](https://img.shields.io/badge/Docker-24.0.7-blue.svg?logo=docker)<!-- GEN:stop -->
+![Python](https://img.shields.io/badge/Python-3.10.12-yellow.svg?logo=python) <!-- GEN:Docker -->![Docker](https://img.shields.io/badge/Docker-24.0.7-blue.svg?logo=docker)<!-- GEN:stop -->
 
-Version: 0.0.1_beta  
-
-> 🚧 Pardon our mess! In case *beta* is not obvious, WMN-Docker is an active construction zone. We make no guarantees about stability while we are in development.
+Version: 1.0.0
 
 ## 💎 About
 
-WhatsMyName (WMN) by [Micah "WebBreacher" Hoffman](https://webbreacher.com/) was created in 2015 with the goal of discovering usernames on a given website. WMN-Docker creates an API wrapper in a containerized Docker environment around WMN for integration, modularity, and scalability with other OSINT tooling.
+[WhatsMyName (WMN)](https://github.com/WebBreacher/WhatsMyName) by [Micah "WebBreacher" Hoffman](https://webbreacher.com/) was created in 2015 with the goal of discovering usernames on a given website. WMN-Docker creates an API wrapper in a containerized Docker environment around WMN for integration, modularity, and scalability with other OSINT tooling.
 
 ## ✨ Features
 
@@ -40,7 +38,7 @@ WMN-Docker offers straightforward functionality to compliment the original inten
   - **Contributing**: Initialize the local .env and build container from source code with `python3 client.py --setup dev`
 
 ### Initialize User Database
-By default, authentication is required. To initialize the user database and retrieve credentials:
+By default, authentication is required. *If you wish to disble this requirement (not recommended for production environments), set AUTH_REQUIRED=False in your .env file.* To initialize the user database and retrieve credentials:
 - Execute `docker ps` to obtain the container id of the api.
 - Launch a bash shell with `docker exec -it <api_container_id> bash`
 - Initialize the database by running `python3 users.py initialize`
