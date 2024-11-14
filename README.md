@@ -33,6 +33,11 @@ WMN-Docker offers straightforward functionality to compliment the original inten
 
 ### Installation
 - Clone the repository using `git clone https://github.com/kodamaChameleon/wmn-docker.git`
+- *(Optional)* Use a python virtual environment. Not necessary for launching the Docker API.
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
 - Environment
   - **Quick Setup**: Initialize the local .env and pull container images from DockerHub using `python3 client.py --setup`
   - **Contributing**: Initialize the local .env and build container from source code with `python3 client.py --setup dev`
@@ -45,6 +50,33 @@ By default, authentication is required. *If you wish to disble this requirement 
 - Save the initial credentials in a safe location.
 
 > 💡 Additional user management features are available from the users.py command line utility inside the container. Just run `python3 users.py -h`
+
+### Example Usage
+The client.py sub-library, [api.py](utils/api.py), already contains an example python wrapper for API usage. Here are a few more examples to get you started using curl.
+
+**Authentication**
+```bash
+curl -X POST "http://localhost:8000/api/v1/token" \
+     -H "Content-Type: application/json" \
+     -d '{"user_id": "your_user_id", "secret": "your_secret"}'
+```
+Returns a JSON Web Token (JWT) for use in subsequent calls.
+
+**Submit a Username for Lookup**
+```bash
+curl -X POST "http://localhost:8000/api/v1/lookup" \
+     -H "Authorization: Bearer your_jwt_token" \
+     -H "Content-Type: application/json" \
+     -d '{"username": "kodamachameleon"}'
+```
+Returns a Job ID to lookup results.
+
+**Check Job Status**
+```bash
+curl -X GET "http://localhost:8000/api/v1/status/your_job_id" \
+     -H "Authorization: Bearer your_jwt_token"
+```
+Returns JSON results of username lookup.
 
 ## 🤝Contributing
 Contributions are welcome! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to get involved.
