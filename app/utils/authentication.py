@@ -9,7 +9,7 @@ Copyright:   (c) Kodama Chameleon 2024
 Licence:     CC BY 4.0
 """
 import jwt
-from fastapi import HTTPException, Depends
+from fastapi import HTTPException, Depends, status
 
 from users import load_user_data
 from .config import SECRET_KEY, ALGORITHM, AUTH_REQUIRED, pwd_context, oauth2_scheme, User
@@ -58,12 +58,24 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
+        
+        # Non-existant user
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+
         token_data = {"user_id": user_id}
-    except jwt.JWTError:
-        logger.error(f"Invalid token for user {user_id}")
+
+    # Invalid token
+    except jwt.InvalidTokenError:
+        logger.error(f"Invalid token '{token}'")
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+
+    # Unknown error
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication error"
+        )
 
     logger.info(f"Successful login for user {user_id}")
     return token_data
