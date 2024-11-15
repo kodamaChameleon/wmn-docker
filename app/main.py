@@ -8,6 +8,7 @@ Created:     11/11/2024
 Copyright:   (c) Kodama Chameleon 2024
 Licence:     CC BY 4.0
 """
+import re
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi_limiter import FastAPILimiter
@@ -62,10 +63,10 @@ async def submit_username(request: UsernameLookup, user: dict =  Depends(optiona
     try:
         # Validate the username
         username = request.username
-        if not username.isalnum():
+        if not re.match(r'^[a-zA-Z0-9:/?&=#._%+-]+$', username):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username must be alphanumeric."
+                detail="Username must contain only valid URL characters."
             )
 
         # Check if the username is in the cache
@@ -82,7 +83,17 @@ async def submit_username(request: UsernameLookup, user: dict =  Depends(optiona
         await redis_connection.setex(username, CACHE_EXPIRATION, task.id)
 
         return {"job_id": task.id}
+    
+    except HTTPException as http_ex:
+        
+        # Handle specific HTTPException, 400 Bad Request
+        if http_ex.status_code == status.HTTP_400_BAD_REQUEST:
+            logger.error(f"Bad Request: {http_ex.detail}")
+            raise http_ex
 
+        raise http_ex
+
+    # Handle unknown error
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         raise HTTPException(
