@@ -108,6 +108,13 @@ async def job_status(job_id: str, user: dict =  Depends(optional_auth_dependency
     Check job status of username lookup
     """
     try:
+        # Validate the job_id as a UUID
+        if not re.match(r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$', job_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid job_id format. Must be a valid UUID."
+            )
+
         logger.info(f"Received request to check status for job_id: {job_id}")
         task_result = AsyncResult(job_id)
 
@@ -123,6 +130,15 @@ async def job_status(job_id: str, user: dict =  Depends(optional_auth_dependency
         else:
             logger.warning(f"Job {job_id} is in an unknown state: {task_result.state}")
             return {"status": "Unknown state", "state": task_result.state}
+
+    except HTTPException as http_ex:
+        
+        # Handle specific HTTPException, 400 Bad Request
+        if http_ex.status_code == status.HTTP_400_BAD_REQUEST:
+            logger.error(f"Bad Request: {http_ex.detail}")
+            raise http_ex
+
+        raise http_ex
 
     except Exception as e:
         logger.error(f"Unexpected error while checking job status for job_id {job_id}: {e}")
