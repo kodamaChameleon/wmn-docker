@@ -14,7 +14,14 @@ from celery import Celery
 
 from .core import username_lookup, logger
 
-celery = Celery(__name__, broker=os.getenv("CELERY_BROKER_URL"), backend=os.getenv("CELERY_RESULT_BACKEND"))
+celery = Celery(
+    __name__,
+    broker=os.getenv("CELERY_BROKER_URL"),
+    backend=os.getenv("CELERY_RESULT_BACKEND")
+)
+
+# Set the new broker connection retry setting
+celery.conf.broker_connection_retry_on_startup = True
 
 @celery.task
 def check_username(username: str):
