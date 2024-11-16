@@ -42,6 +42,8 @@ source .venv/bin/activate
   - **Quick Setup**: Initialize the local .env and pull container images from DockerHub using `python3 client.py --setup`
   - **Contributing**: Initialize the local .env and build container from source code with `python3 client.py --setup dev`
 
+> 💡 It is recommended to allow memory over commit for redis servers in production. Try `sysctl vm.overcommit_memory=1`
+
 ### Initialize User Database
 By default, authentication is required. *If you wish to disble this requirement (not recommended for production environments), set AUTH_REQUIRED=False in your .env file.* To initialize the user database and retrieve credentials:
 - Execute `docker ps` to obtain the container id of the api.
