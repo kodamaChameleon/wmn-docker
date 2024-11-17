@@ -70,11 +70,24 @@ async def submit_username(request: UsernameLookup, user: dict =  Depends(optiona
             )
 
         # Check if the username is in the cache
+        # TODO: Needs to check status of job before retreiving old result to avoid returning bad results
         cached_job_id = await redis_connection.get(username)
         if cached_job_id:
-            # If cached, return the cached job_id
-            logger.info(f"Cache hit for username: {username}, returning job_id: {cached_job_id}")
-            return {"job_id": cached_job_id}
+            logger.info(f"Cache hit for username: {username}, found cached job_id: {cached_job_id}")
+            
+            # Check the job status of the cached job ID
+            task_result = AsyncResult(cached_job_id)
+            
+            if task_result.state == 'PENDING':
+                logger.debug(f"Cached job_id {cached_job_id} is still pending.")
+                return {"job_id": cached_job_id}
+            
+            elif task_result.state == 'SUCCESS' and 'error' not in task_result.result:
+                logger.info(f"Cached job_id {cached_job_id} completed successfully with result: {task_result.result}")
+                return {"job_id": cached_job_id}
+            
+            # If the job is in FAILURE or any other state (like CANCELED due to timeout), start a new job
+            logger.warning(f"Cached job_id {cached_job_id} is no longer valid. Starting a new job.")
 
         task = check_username.delay(username)
         logger.info(f"Task created with job_id: {task.id} for lookup username: {username}")
@@ -121,12 +134,20 @@ async def job_status(job_id: str, user: dict =  Depends(optional_auth_dependency
         if task_result.state == 'PENDING':
             logger.debug(f"Job {job_id} is still processing")
             return {"status": "Job is still processing"}
+
         elif task_result.state == 'SUCCESS':
             logger.info(f"Job {job_id} completed successfully with result: {task_result.result}")
+
+            # Check if the result indicates a timeout/cancellation
+            if 'error' in task_result.result and 'Task timeout' in task_result.result['error']:
+                logger.error(f"Job {job_id} was canceled due to timeout")
+                return {"status": "Job failed", "error": "The task took too long and was canceled."}
             return {"status": "Job complete", "result": task_result.result}
+
         elif task_result.state == 'FAILURE':
             logger.error(f"Job {job_id} failed with error: {task_result.info}")
             return {"status": "Job failed", "error": str(task_result.info)}
+
         else:
             logger.warning(f"Job {job_id} is in an unknown state: {task_result.state}")
             return {"status": "Unknown state", "state": task_result.state}
