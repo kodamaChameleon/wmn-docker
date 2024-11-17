@@ -122,7 +122,7 @@ async def check_username_existence(username, data):
     stats = {
         "websites_checked": checked_count,
         "profiles_found": len(found_sites),
-        "check_failures": error_count,
+        "errors": error_count,
     }
 
     return found_sites, stats
