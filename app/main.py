@@ -140,9 +140,9 @@ async def job_status(job_id: str, user: dict =  Depends(optional_auth_dependency
             logger.info(f"Job {job_id} completed successfully with result: {task_result.result}")
 
             # Check if the result indicates a timeout/cancellation
-            if 'error' in task_result.result and 'Task timeout' in task_result.result['error']:
-                logger.error(f"Job {job_id} was canceled due to timeout")
-                return {"status": "Job failed", "error": "The task took too long and was canceled."}
+            if task_result.result  and 'error' in task_result.result:
+                logger.error(f"Job {job_id} completed with errors: {task_result.result['error']}")
+                return {"status": "Job failed", "error": task_result.result['error']}
 
             return {"status": "Job complete", "result": task_result.result}
 
