@@ -12,6 +12,9 @@ import time
 import os
 from typing import Optional
 import requests
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 # Configure the API endpoint and default token environment variable
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
@@ -42,7 +45,7 @@ def get_access_token(user_id: str, secret: str) -> Optional[str]:
     try:
         # Send the POST request to get the access token
         api_url = f"{API_BASE_URL}/api/v1/token"
-        response = requests.post(api_url, json=payload)
+        response = requests.post(api_url, json=payload, headers=headers)
 
         # Check if the response status is OK
         if response.status_code == 200:
@@ -128,7 +131,7 @@ def user_lookup(args):
         return
 
     # Poll the job status until it completes
-    status_check_frequency = 15
+    status_check_frequency = 10
     while True:
         job_status = check_job_status(job_id, token)
         if not job_status:
