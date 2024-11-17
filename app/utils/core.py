@@ -13,9 +13,9 @@ import asyncio
 import json
 import logging
 from logging.handlers import RotatingFileHandler
-import aiohttp
+from aiohttp import TCPConnector, ClientSession, ClientError, ClientTimeout
 
-from .config import LOG_DIR, LOG_FILE, WMN_HEADERS, WMN_URL
+from .config import LOG_DIR, LOG_FILE, WMN_HEADERS, WMN_URL, SSL_WEBSITE_ENUMERATION, CHECK_SITE_TIMEOUT
 
 # Configure logging with rotation
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -40,7 +40,8 @@ async def username_lookup(username: str):
     """
     logger.info(f"Looking up username: {username}")
     data = None
-    async with aiohttp.ClientSession() as session:
+    
+    async with ClientSession() as session:
         try:
             response = await session.get(WMN_URL, headers=WMN_HEADERS)
             if response.content_type != 'application/json':
@@ -62,14 +63,19 @@ async def username_lookup(username: str):
 
 async def check_site(session, site, username):
     """Checks if the username exists on a specific site."""
+    timeout = ClientTimeout(total=CHECK_SITE_TIMEOUT) 
     try:
-        async with session.get(site["uri_check"].format(account=username), headers=WMN_HEADERS) as response:
+        async with session.get(
+            site["uri_check"].format(account=username),
+            headers=WMN_HEADERS, 
+            timeout=timeout
+        ) as response:
             text = await response.text()
             if response.status == site["e_code"] and site["e_string"] in text:
                 return site["name"], site["uri_check"].format(account=username)
     except asyncio.TimeoutError:
         logger.error(f"Timeout error checking {site['name']}")
-    except aiohttp.ClientError as e:
+    except ClientError as e:
         logger.error(f"Client error checking {site['name']}: {e}")
     except Exception as e:
         logger.error(f"Unexpected error checking {site['name']}: {e}")
@@ -78,8 +84,11 @@ async def check_site(session, site, username):
 
 async def check_username_existence(username, data):
     """Checks multiple sites for the existence of a username."""
+    # Configure SSL certificate verification
+    connector = TCPConnector(ssl=SSL_WEBSITE_ENUMERATION)
+
     found_sites = []
-    async with aiohttp.ClientSession() as session:
+    async with ClientSession(connector=connector) as session:
         tasks = [check_site(session, site, username) for site in data["sites"]]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         found_sites.extend([res for res in results if res is not None])
