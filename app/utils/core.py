@@ -62,19 +62,19 @@ async def username_lookup(username: str):
             return []
 
     if data:
-        found_sites = await check_username_existence(username, data)
-        return found_sites
+        found_sites, stats = await check_username_existence(username, data)
+        return {"websites": found_sites, "stats": stats}
 
     logger.warning(f"No data found in WMN lookup for username: {username}")
 
 
 async def check_site(session, site, username):
     """Checks if the username exists on a specific site."""
-    timeout = ClientTimeout(total=CHECK_SITE_TIMEOUT) 
+    timeout = ClientTimeout(total=CHECK_SITE_TIMEOUT)
     try:
         async with session.get(
             site["uri_check"].format(account=username),
-            headers=WMN_HEADERS, 
+            headers=WMN_HEADERS,
             timeout=timeout
         ) as response:
             text = await response.text()
@@ -83,12 +83,15 @@ async def check_site(session, site, username):
 
     except asyncio.TimeoutError:
         logger.error(f"Timeout error checking {site['name']}")
+        return "error", site["name"]
 
     except ClientError as e:
         logger.error(f"Client error checking {site['name']}: {e}")
+        return "error", site["name"]
 
     except Exception as e:
         logger.error(f"Unexpected error checking {site['name']}: {e}")
+        return "error", site["name"]
 
     return None
 
@@ -99,8 +102,27 @@ async def check_username_existence(username, data):
     connector = TCPConnector(ssl=SSL_WEBSITE_ENUMERATION)
 
     found_sites = []
+    checked_count = 0
+    error_count = 0
+
     async with ClientSession(connector=connector) as session:
         tasks = [check_site(session, site, username) for site in data["sites"]]
         results = await asyncio.gather(*tasks, return_exceptions=True)
-        found_sites.extend([res for res in results if res is not None])
-    return found_sites
+
+        # Iterate over results to count successes and errors
+        for result in results:
+            checked_count += 1
+            if result:
+                if result[0] == "error":
+                    error_count += 1
+                elif result is not None:
+                    found_sites.append(result)
+
+    # Return statistics alongside found sites
+    stats = {
+        "websites_checked": checked_count,
+        "profiles_found": len(found_sites),
+        "check_failures": error_count,
+    }
+
+    return found_sites, stats
