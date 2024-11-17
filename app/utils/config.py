@@ -26,6 +26,7 @@ WMN_HEADERS = {
 }
 redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
 RATE_LIMIT = os.getenv("RATE_LIMIT", 20)
+JOB_TIMEOUT = int(os.getenv("JOB_TIMEOUT", 420))
 CACHE_EXPIRATION = int(os.getenv("CACHE_EXPIRATION", 3600))
 
 # Security
