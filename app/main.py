@@ -78,11 +78,13 @@ async def submit_username(request: UsernameLookup, user: dict =  Depends(optiona
             # Check the job status of the cached job ID
             task_result = AsyncResult(cached_job_id)
             
+            # Job is still pending
             if task_result.state == 'PENDING':
                 logger.debug(f"Cached job_id {cached_job_id} is still pending.")
                 return {"job_id": cached_job_id}
             
-            elif task_result.state == 'SUCCESS' and 'error' not in task_result.result:
+            # Results were successful without errors and returned results
+            elif task_result.state == 'SUCCESS' and task_result.result and 'error' not in task_result.result:
                 logger.info(f"Cached job_id {cached_job_id} completed successfully with result: {task_result.result}")
                 return {"job_id": cached_job_id}
             
