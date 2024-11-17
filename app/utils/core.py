@@ -15,7 +15,14 @@ import logging
 from logging.handlers import RotatingFileHandler
 from aiohttp import TCPConnector, ClientSession, ClientError, ClientTimeout
 
-from .config import LOG_DIR, LOG_FILE, WMN_HEADERS, WMN_URL, SSL_WEBSITE_ENUMERATION, CHECK_SITE_TIMEOUT
+from .config import (
+    LOG_DIR,
+    LOG_FILE,
+    WMN_HEADERS,
+    WMN_URL,
+    SSL_WEBSITE_ENUMERATION,
+    CHECK_SITE_TIMEOUT
+)
 
 # Configure logging with rotation
 os.makedirs(LOG_DIR, exist_ok=True)
@@ -40,7 +47,7 @@ async def username_lookup(username: str):
     """
     logger.info(f"Looking up username: {username}")
     data = None
-    
+
     async with ClientSession() as session:
         try:
             response = await session.get(WMN_URL, headers=WMN_HEADERS)
@@ -57,8 +64,8 @@ async def username_lookup(username: str):
     if data:
         found_sites = await check_username_existence(username, data)
         return found_sites
-    else:
-        logger.warning(f"No data found in WMN lookup for username: {username}")
+
+    logger.warning(f"No data found in WMN lookup for username: {username}")
 
 
 async def check_site(session, site, username):
@@ -73,12 +80,16 @@ async def check_site(session, site, username):
             text = await response.text()
             if response.status == site["e_code"] and site["e_string"] in text:
                 return site["name"], site["uri_check"].format(account=username)
+
     except asyncio.TimeoutError:
         logger.error(f"Timeout error checking {site['name']}")
+
     except ClientError as e:
         logger.error(f"Client error checking {site['name']}: {e}")
+
     except Exception as e:
         logger.error(f"Unexpected error checking {site['name']}: {e}")
+
     return None
 
 

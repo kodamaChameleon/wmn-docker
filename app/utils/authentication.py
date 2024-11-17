@@ -58,7 +58,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
-        
+
         # Non-existant user
         if user_id is None:
             logger.error(f"No user found for token: '{token}'")

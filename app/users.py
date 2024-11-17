@@ -75,9 +75,15 @@ def initialize_user_data():
         initial_user = User(user_id=initial_id, secret=hashed_secret, disabled=False)
         users = Users(users=[initial_user])
         save_user_data(users)
-        print(CREDENTIALS_BANNER.replace("<user_id>", initial_id).replace("<secret>", initial_secret))
+        print(
+            CREDENTIALS_BANNER.replace("<user_id>", initial_id).replace("<secret>",
+            initial_secret)
+        )
     else:
-        raise ConnectionError(f"Database already exists. Did you mean 'python3 users.py add'? If the problem persist, delete {DB_FILE} and try again.")
+        raise ConnectionError(f"Database already exists. \
+            Did you mean 'python3 users.py add'? \
+            If the problem persist, delete {DB_FILE} and try again."
+        )
 
 def create_new_user(user_id: str = None, secret: str = None):
     """

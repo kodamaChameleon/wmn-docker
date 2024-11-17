@@ -69,7 +69,8 @@ def submit_username(username, token=None):
         response = requests.post(
             f"{API_BASE_URL}/api/v1/lookup",
             json={"username": username},
-            headers=headers
+            headers=headers,
+            timeout=15
         )
         response.raise_for_status()
         job_id = response.json().get("job_id")
@@ -86,7 +87,11 @@ def check_job_status(job_id, token=None):
     if token:
         headers["Authorization"] = f"Bearer {token}"
     try:
-        response = requests.get(f"{API_BASE_URL}/api/v1/status/{job_id}", headers=headers)
+        response = requests.get(
+            f"{API_BASE_URL}/api/v1/status/{job_id}",
+            headers=headers,
+            timeout=15
+        )
         response.raise_for_status()
         status_info = response.json()
         return status_info
@@ -135,9 +140,10 @@ def user_lookup(args):
             print("Job complete. Results:")
             print(job_status["result"])
             break
-        elif status == "Job failed":
+
+        if status == "Job failed":
             print("Job failed:", job_status.get("error"))
             break
-        else:
-            print(f"Job is still processing... checking again in {status_check_frequency} seconds.")
-            time.sleep(status_check_frequency)
+
+        print(f"Job is still processing... checking again in {status_check_frequency} seconds.")
+        time.sleep(status_check_frequency)

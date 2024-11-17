@@ -85,7 +85,7 @@ def start_docker_containers(context: str):
             raise ValueError("Unknown context. Please specify 'dev' or 'prod'.")
 
         # Wait for containers to initialize
-        subprocess.call(['sleep', '5'])  
+        subprocess.call(['sleep', '5'])
         print("Docker containers are up and running.")
     except subprocess.CalledProcessError as e:
         print(f"Failed to launch docker-compose: {e}")
