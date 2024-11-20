@@ -12,6 +12,9 @@ import time
 import os
 from typing import Optional
 import requests
+from dotenv import load_dotenv
+
+load_dotenv(override=True)
 
 # Configure the API endpoint and default token environment variable
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
@@ -42,7 +45,7 @@ def get_access_token(user_id: str, secret: str) -> Optional[str]:
     try:
         # Send the POST request to get the access token
         api_url = f"{API_BASE_URL}/api/v1/token"
-        response = requests.post(api_url, json=payload)
+        response = requests.post(api_url, json=payload, headers=headers)
 
         # Check if the response status is OK
         if response.status_code == 200:
@@ -69,7 +72,8 @@ def submit_username(username, token=None):
         response = requests.post(
             f"{API_BASE_URL}/api/v1/lookup",
             json={"username": username},
-            headers=headers
+            headers=headers,
+            timeout=15
         )
         response.raise_for_status()
         job_id = response.json().get("job_id")
@@ -86,7 +90,11 @@ def check_job_status(job_id, token=None):
     if token:
         headers["Authorization"] = f"Bearer {token}"
     try:
-        response = requests.get(f"{API_BASE_URL}/api/v1/status/{job_id}", headers=headers)
+        response = requests.get(
+            f"{API_BASE_URL}/api/v1/status/{job_id}",
+            headers=headers,
+            timeout=15
+        )
         response.raise_for_status()
         status_info = response.json()
         return status_info
@@ -123,7 +131,7 @@ def user_lookup(args):
         return
 
     # Poll the job status until it completes
-    status_check_frequency = 15
+    status_check_frequency = 10
     while True:
         job_status = check_job_status(job_id, token)
         if not job_status:
@@ -135,9 +143,10 @@ def user_lookup(args):
             print("Job complete. Results:")
             print(job_status["result"])
             break
-        elif status == "Job failed":
+
+        if status == "Job failed":
             print("Job failed:", job_status.get("error"))
             break
-        else:
-            print(f"Job is still processing... checking again in {status_check_frequency} seconds.")
-            time.sleep(status_check_frequency)
+
+        print(f"Job is still processing... checking again in {status_check_frequency} seconds.")
+        time.sleep(status_check_frequency)

@@ -27,7 +27,7 @@ def parse_arguments():
         "-s", "--setup", 
         nargs='?',
         const='prod',
-        choices=["dev", "prod"], 
+        choices=["dev", "prod"],
         help="Set up configuration (options: 'dev' or 'prod')."
     )
 

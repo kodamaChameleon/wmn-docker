@@ -8,6 +8,7 @@ Created:     11/11/2024
 Copyright:   (c) Kodama Chameleon 2024
 Licence:     CC BY 4.0
 """
+import re
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status, Depends
 from fastapi_limiter import FastAPILimiter
@@ -19,10 +20,10 @@ import uvicorn
 from utils.tasks import check_username
 from utils.authentication import authenticate_user, create_access_token, optional_auth_dependency
 from utils.core import logger
-from utils.config import UsernameLookup, LoginRequest, RATE_LIMIT, CACHE_EXPIRATION, redis_url
+from utils.config import UsernameLookup, LoginRequest, RATE_LIMIT, CACHE_EXPIRATION, REDIS_URL
 
 # Initialize redis connection
-redis_connection = redis.from_url(redis_url, encoding="utf8")
+redis_connection = redis.from_url(REDIS_URL, encoding="utf8")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -62,18 +63,32 @@ async def submit_username(request: UsernameLookup, user: dict =  Depends(optiona
     try:
         # Validate the username
         username = request.username
-        if not username.isalnum():
+        if not re.match(r'^[a-zA-Z0-9:/?&=#._%+-]+$', username):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username must be alphanumeric."
+                detail="Username must contain only valid URL characters."
             )
 
         # Check if the username is in the cache
         cached_job_id = await redis_connection.get(username)
         if cached_job_id:
-            # If cached, return the cached job_id
-            logger.info(f"Cache hit for username: {username}, returning job_id: {cached_job_id}")
-            return {"job_id": cached_job_id}
+            logger.info(f"Cache hit for username: {username}, found cached job_id: {cached_job_id}")
+
+            # Check the job status of the cached job ID
+            task_result = AsyncResult(cached_job_id)
+
+            # Job is still pending
+            if task_result.state == 'PENDING':
+                logger.debug(f"Cached job_id {cached_job_id} is still pending.")
+                return {"job_id": cached_job_id}
+    
+            # Results were successful without errors and returned results
+            elif task_result.state == 'SUCCESS' and task_result.result and 'error' not in task_result.result:
+                logger.info(f"Cached job_id {cached_job_id} completed successfully with result: {task_result.result}")
+                return {"job_id": cached_job_id}
+
+            # If the job is in FAILURE or any other state, start a new job
+            logger.warning(f"Cached job_id {cached_job_id} is no longer valid. Starting a new job.")
 
         task = check_username.delay(username)
         logger.info(f"Task created with job_id: {task.id} for lookup username: {username}")
@@ -83,6 +98,16 @@ async def submit_username(request: UsernameLookup, user: dict =  Depends(optiona
 
         return {"job_id": task.id}
 
+    except HTTPException as http_ex:
+
+        # Handle specific HTTPException, 400 Bad Request
+        if http_ex.status_code == status.HTTP_400_BAD_REQUEST:
+            logger.error(f"Bad Request: {http_ex.detail}")
+            raise http_ex
+
+        raise http_ex
+
+    # Handle unknown error
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         raise HTTPException(
@@ -97,21 +122,45 @@ async def job_status(job_id: str, user: dict =  Depends(optional_auth_dependency
     Check job status of username lookup
     """
     try:
+        # Validate the job_id as a UUID
+        if not re.match(r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$', job_id):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid job_id format. Must be a valid UUID."
+            )
+
         logger.info(f"Received request to check status for job_id: {job_id}")
         task_result = AsyncResult(job_id)
 
         if task_result.state == 'PENDING':
             logger.debug(f"Job {job_id} is still processing")
             return {"status": "Job is still processing"}
-        elif task_result.state == 'SUCCESS':
+
+        if task_result.state == 'SUCCESS':
             logger.info(f"Job {job_id} completed successfully with result: {task_result.result}")
+
+            # Check if the result indicates a timeout/cancellation
+            if task_result.result  and 'error' in task_result.result:
+                logger.error(f"Job {job_id} completed with errors: {task_result.result['error']}")
+                return {"status": "Job failed", "error": task_result.result['error']}
+
             return {"status": "Job complete", "result": task_result.result}
-        elif task_result.state == 'FAILURE':
+
+        if task_result.state == 'FAILURE':
             logger.error(f"Job {job_id} failed with error: {task_result.info}")
             return {"status": "Job failed", "error": str(task_result.info)}
-        else:
-            logger.warning(f"Job {job_id} is in an unknown state: {task_result.state}")
-            return {"status": "Unknown state", "state": task_result.state}
+
+        logger.warning(f"Job {job_id} is in an unknown state: {task_result.state}")
+        return {"status": "Unknown state", "state": task_result.state}
+
+    except HTTPException as http_ex:
+
+        # Handle specific HTTPException, 400 Bad Request
+        if http_ex.status_code == status.HTTP_400_BAD_REQUEST:
+            logger.error(f"Bad Request: {http_ex.detail}")
+            raise http_ex
+
+        raise http_ex
 
     except Exception as e:
         logger.error(f"Unexpected error while checking job status for job_id {job_id}: {e}")

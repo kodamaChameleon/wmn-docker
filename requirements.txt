@@ -8,3 +8,4 @@ aiohttp
 pyjwt
 passlib
 cryptography
+python-dotenv

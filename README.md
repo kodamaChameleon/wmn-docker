@@ -1,14 +1,12 @@
 <img src="./wmn-docker.png">  
 
-![Python](https://img.shields.io/badge/Python-3.10.12-yellow.svg?logo=python) <!-- GEN:Django -->![Docker](https://img.shields.io/badge/Docker-24.0.7-blue.svg?logo=docker)<!-- GEN:stop -->
+![Python](https://img.shields.io/badge/Python-3.10.12-yellow.svg?logo=python) <!-- GEN:Docker -->![Docker](https://img.shields.io/badge/Docker-24.0.7-blue.svg?logo=docker)<!-- GEN:stop -->
 
-Version: 0.0.1_beta  
-
-> 🚧 Pardon our mess! In case *beta* is not obvious, WMN-Docker is an active construction zone. We make no guarantees about stability while we are in development.
+Version: 1.0.0
 
 ## 💎 About
 
-WhatsMyName (WMN) by [Micah "WebBreacher" Hoffman](https://webbreacher.com/) was created in 2015 with the goal of discovering usernames on a given website. WMN-Docker creates an API wrapper in a containerized Docker environment around WMN for integration, modularity, and scalability with other OSINT tooling.
+[WhatsMyName (WMN)](https://github.com/WebBreacher/WhatsMyName) by [Micah "WebBreacher" Hoffman](https://webbreacher.com/) was created in 2015 with the goal of discovering usernames on a given website. WMN-Docker creates an API wrapper in a containerized Docker environment around WMN for integration, modularity, and scalability with other OSINT tooling.
 
 ## ✨ Features
 
@@ -34,19 +32,59 @@ WMN-Docker offers straightforward functionality to compliment the original inten
 - Python 3.10
 
 ### Installation
-- Clone the repository using `git clone https://github.com/kodamaChameleon/wmn-docker.git`
-- Environment
-  - **Quick Setup**: Initialize the local .env and pull container images from DockerHub using `python3 client.py --setup`
-  - **Contributing**: Initialize the local .env and build container from source code with `python3 client.py --setup dev`
+**Clone the repository**
+```bash
+git clone https://github.com/kodamaChameleon/wmn-docker.git
+cd wmn-docker
+```
+
+*(Optional)* Use a python virtual environment. Not necessary for launching the Docker API.
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+**Environment**
+- **Quick Setup**: Initialize the local .env and pull container images from DockerHub using `python3 client.py --setup`
+- **Contributing**: Initialize the local .env and build container from source code with `python3 client.py --setup dev`
+
+> 💡 It is recommended to allow memory over commit for redis servers in production. Try `sysctl vm.overcommit_memory=1`
 
 ### Initialize User Database
-By default, authentication is required. To initialize the user database and retrieve credentials:
+By default, authentication is required. *If you wish to disble this requirement (not recommended for production environments), set AUTH_REQUIRED=False in your .env file.* To initialize the user database and retrieve credentials:
 - Execute `docker ps` to obtain the container id of the api.
 - Launch a bash shell with `docker exec -it <api_container_id> bash`
 - Initialize the database by running `python3 users.py initialize`
 - Save the initial credentials in a safe location.
 
 > 💡 Additional user management features are available from the users.py command line utility inside the container. Just run `python3 users.py -h`
+
+### Example Usage
+The client.py sub-library, [api.py](utils/api.py), already contains an example python wrapper for API usage. Here are a few more examples to get you started using curl.
+
+**Authentication**
+```bash
+curl -X POST "http://localhost:8000/api/v1/token" \
+     -H "Content-Type: application/json" \
+     -d '{"user_id": "your_user_id", "secret": "your_secret"}'
+```
+Returns a JSON Web Token (JWT) for use in subsequent calls.
+
+**Submit a Username for Lookup**
+```bash
+curl -X POST "http://localhost:8000/api/v1/lookup" \
+     -H "Authorization: Bearer your_jwt_token" \
+     -H "Content-Type: application/json" \
+     -d '{"username": "kodamachameleon"}'
+```
+Returns a Job ID to lookup results.
+
+**Check Job Status**
+```bash
+curl -X GET "http://localhost:8000/api/v1/status/your_job_id" \
+     -H "Authorization: Bearer your_jwt_token"
+```
+Returns JSON results of username lookup.
 
 ## 🤝Contributing
 Contributions are welcome! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to get involved.
