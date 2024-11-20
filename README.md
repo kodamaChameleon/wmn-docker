@@ -32,15 +32,21 @@ WMN-Docker offers straightforward functionality to compliment the original inten
 - Python 3.10
 
 ### Installation
-- Clone the repository using `git clone https://github.com/kodamaChameleon/wmn-docker.git`
-- *(Optional)* Use a python virtual environment. Not necessary for launching the Docker API.
+**Clone the repository**
+```bash
+git clone https://github.com/kodamaChameleon/wmn-docker.git
+cd wmn-docker
+```
+
+*(Optional)* Use a python virtual environment. Not necessary for launching the Docker API.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
-- Environment
-  - **Quick Setup**: Initialize the local .env and pull container images from DockerHub using `python3 client.py --setup`
-  - **Contributing**: Initialize the local .env and build container from source code with `python3 client.py --setup dev`
+
+**Environment**
+- **Quick Setup**: Initialize the local .env and pull container images from DockerHub using `python3 client.py --setup`
+- **Contributing**: Initialize the local .env and build container from source code with `python3 client.py --setup dev`
 
 > 💡 It is recommended to allow memory over commit for redis servers in production. Try `sysctl vm.overcommit_memory=1`
 
