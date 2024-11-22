@@ -2,7 +2,9 @@
 
 ![Python](https://img.shields.io/badge/Python-3.10.12-yellow.svg?logo=python) <!-- GEN:Docker -->![Docker](https://img.shields.io/badge/Docker-24.0.7-blue.svg?logo=docker)<!-- GEN:stop -->
 
-Version: 1.0.0
+Version: 1.1.0_beta
+
+> 🚧 1.1.0_beta is under construction. Use the main branch for stable releases.
 
 ## 💎 About
 
