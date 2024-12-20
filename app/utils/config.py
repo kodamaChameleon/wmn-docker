@@ -28,7 +28,7 @@ SSL_WEBSITE_ENUMERATION = os.getenv("SSL_WEBSITE_ENUMERATION", "false").lower() 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 # App Specific
-DB_FILE = "/home/kodama/wmn.db"
+DB_FILE = "/home/kodama/user.db"
 WMN_URL = "https://raw.githubusercontent.com/WebBreacher/WhatsMyName/main/wmn-data.json"
 WMN_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
