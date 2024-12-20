@@ -13,8 +13,23 @@ import os
 from typing import Optional
 import requests
 from dotenv import load_dotenv
+import colorama
+from colorama import Fore, Style
 
+# Initialize env and colorama
 load_dotenv(override=True)
+colorama.init(autoreset=True)
+
+banner = Fore.GREEN + f"""\
+ _    _ _           _       ___  ___      _   _                            ______           _             
+| |  | | |         | |      |  \/  |     | \ | |                           |  _  \         | |            
+| |  | | |__   __ _| |_ ___ | .  . |_   _|  \| | __ _ _ __ ___   ___ ______| | | |___   ___| | _____ _ __ 
+| |/\| | '_ \ / _` | __/ __|| |\/| | | | | . ` |/ _` | '_ ` _ \ / _ \______| | | / _ \ / __| |/ / _ \ '__|
+\  /\  / | | | (_| | |_\__ \| |  | | |_| | |\  | (_| | | | | | |  __/      | |/ / (_) | (__|   <  __/ |   
+ \/  \/|_| |_|\__,_|\__|___/\_|  |_/\__, \_| \_/\__,_|_| |_| |_|\___|      |___/ \___/ \___|_|\_\___|_|
+                                     __/ |                                                                
+                                    |___/                        by Kodama Chameleon | with {Fore.RED}❤️{Fore.GREEN} WebBreacher  
+""" + Style.RESET_ALL
 
 # Configure the API endpoint and default token environment variable
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
@@ -104,8 +119,9 @@ def check_job_status(job_id, token=None):
 
 def user_lookup(args):
     """
-    Combine all api calls into single username lookup
+    Combine all API calls into a single username lookup.
     """
+    print(banner)
 
     username = args.username
     api_id = args.api_id or USER_ID
@@ -113,7 +129,7 @@ def user_lookup(args):
 
     # Check if authentication is required but credentials are missing
     if AUTH_REQUIRED and (not api_id or not api_secret):
-        print("Error: API username and password are required but not provided.")
+        print(Fore.RED + "Error: API username and password are required but not provided." + Style.RESET_ALL)
         return
 
     # Obtain access token if authentication is required
@@ -121,13 +137,13 @@ def user_lookup(args):
     if AUTH_REQUIRED:
         token = get_access_token(api_id, api_secret)
         if not token:
-            print("Failed to obtain access token. Exiting.")
+            print(Fore.RED + "Failed to obtain access token. Exiting." + Style.RESET_ALL)
             return
 
     # Submit username to the API
     job_id = submit_username(username, token)
     if not job_id:
-        print("Failed to submit the username. Exiting.")
+        print(Fore.RED + "Failed to submit the username. Exiting." + Style.RESET_ALL)
         return
 
     # Poll the job status until it completes
@@ -135,18 +151,54 @@ def user_lookup(args):
     while True:
         job_status = check_job_status(job_id, token)
         if not job_status:
-            print("Error retrieving job status. Exiting.")
+            print(Fore.RED + "Error retrieving job status. Exiting." + Style.RESET_ALL)
             return
 
         status = job_status.get("status")
         if status == "Job complete":
-            print("Job complete. Results:")
-            print(job_status["result"])
+            print(f"Job ID {job_id} complete!!")
+            display_results(job_status["result"])
             break
 
         if status == "Job failed":
-            print("Job failed:", job_status.get("error"))
+            print(f"{Fore.RED}\nJob failed:{Style.RESET_ALL}\n{job_status.get('error')}")
             break
 
-        print(f"Job is still processing... checking again in {status_check_frequency} seconds.")
-        time.sleep(status_check_frequency)
+        # Countdown timer for status check
+        max_length = 0
+        for remaining in range(status_check_frequency, 0, -1):
+            message = f"{Fore.YELLOW}Job Pending: Checking again in {Style.RESET_ALL}{remaining}"
+            
+            # Pad the message before printing
+            if len(message) > max_length:
+                max_length = len(message)
+            message = message + " "*(max_length - len(message))
+            
+            print(message, end="\r")
+            time.sleep(1)
+        
+        # Clear the line after the countdown
+        print(" " * max_length, end="\r")
+
+def display_results(result):
+    """
+    Display the job results in a formatted manner.
+    """
+
+    websites = result.get("websites", [])
+    stats = result.get("stats", {})
+
+    # Print each found website
+    if websites:
+        print(f"{Fore.CYAN}\nFound Profiles:{Style.RESET_ALL}")
+        for site in websites:
+            site_name, site_url = site
+            print(f"  {Fore.GREEN}{site_name}:{Style.RESET_ALL} {site_url}")
+    else:
+        print(f"{Fore.YELLOW}No profiles found.{Style.RESET_ALL}")
+
+    # Print statistics
+    print(f"\n{Fore.MAGENTA}Statistics:{Style.RESET_ALL}")
+    print(f"  {Fore.BLUE}Websites Checked:{Style.RESET_ALL} {stats.get('websites_checked', 0)}")
+    print(f"  {Fore.BLUE}Profiles Found:{Style.RESET_ALL} {stats.get('profiles_found', 0)}")
+    print(f"  {Fore.BLUE}Errors Encountered:{Style.RESET_ALL} {stats.get('errors', 0)}")

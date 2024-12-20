@@ -1,4 +1,5 @@
 fastapi
+colorama
 fastapi-limiter
 uvicorn
 celery
