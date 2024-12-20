@@ -55,8 +55,7 @@ source .venv/bin/activate
 ### Initialize User Database
 By default, authentication is required. *If you wish to disble this requirement (not recommended for production environments), set AUTH_REQUIRED=False in your .env file.* To initialize the user database and retrieve credentials:
 - Execute `docker ps` to obtain the container id of the api.
-- Launch a bash shell with `docker exec -it <api_container_id> bash`
-- Initialize the database by running `python3 users.py initialize`
+- Initialize the database by running `docker exec <api_container_id> python3 users.py initialize`
 - Save the initial credentials in a safe location.
 
 > 💡 Additional user management features are available from the users.py command line utility inside the container. Just run `python3 users.py -h`
