@@ -148,7 +148,7 @@ def check_job_status(job_id, token=None):
         print(f"Error checking job status: {e}")
         return None
 
-def poll_job_status(job_id, batch, token: str=None, output_file: str=None):
+def poll_job_status(job_id, batch, token: str=None, output_file: str=None, username: str=None):
     """
     Poll the job status until it completes.
     """
@@ -192,7 +192,6 @@ def poll_job_status(job_id, batch, token: str=None, output_file: str=None):
                     display_results(subtask.get("results", {}))
             else:
                 try:
-                    username = results["username"]
                     print(f"\n{Fore.MAGENTA}RESULTS FOR {Fore.CYAN}{username.upper()}{Style.RESET_ALL}:")
                 except Exception as e:
                     print(Fore.RED + "Error determining username." + Style.RESET_ALL)
@@ -254,15 +253,17 @@ def user_lookup(args):
         # Handle batch submission
         job_id = submit_batch_usernames(usernames, token)
         batch = True
+        username = None
     else:
         # Single username submission
         job_id = submit_username(usernames[0], token)
         batch = False
+        username = usernames[0]
         if not job_id:
             print(Fore.RED + "Failed to submit the username. Exiting." + Style.RESET_ALL)
             return
 
-    poll_job_status(job_id, batch, token, args.output)
+    poll_job_status(job_id, batch, token, output_file=args.output, username=username)
 
 def display_results(result):
     """

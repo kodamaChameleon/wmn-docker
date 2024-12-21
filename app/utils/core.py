@@ -63,7 +63,7 @@ async def username_lookup(username: str):
 
     if data:
         found_sites, stats = await check_username_existence(username, data)
-        return {"username": username, "websites": found_sites, "stats": stats}
+        return {"websites": found_sites, "stats": stats}
 
     logger.warning(f"No data found in WMN lookup for username: {username}")
 
