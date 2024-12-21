@@ -15,7 +15,8 @@ import random
 import string
 from cryptography.fernet import Fernet
 
-from utils.config import FERNET_KEY, DB_FILE, CREDENTIALS_BANNER, pwd_context, User, Users
+from utils.config import FERNET_KEY, DB_FILE, CREDENTIALS_BANNER, pwd_context
+from utils.models import User, Users
 from utils.core import logger
 
 cipher_suite = Fernet(FERNET_KEY)

@@ -19,9 +19,9 @@ from .config import (
     AUTH_REQUIRED,
     pwd_context,
     oauth2_scheme,
-    ACCESS_TOKEN_EXPIRATION,
-    User
+    ACCESS_TOKEN_EXPIRATION
 )
+from .models import User
 from .core import logger
 
 def authenticate_user(user_id: str, secret: str) -> User:
