@@ -38,10 +38,57 @@ async def lifespan(_: FastAPI):
     await FastAPILimiter.close()
 
 # Initialize the FastAPI app and FastAPILimiter
-app = FastAPI(lifespan=lifespan)
+description = """
+## 💎 About
+
+[WhatsMyName (WMN)](https://github.com/WebBreacher/WhatsMyName) by [Micah "WebBreacher" Hoffman](https://webbreacher.com/) was created in 2015 with the goal of discovering usernames on a given website. WMN-Docker creates an API wrapper in a containerized Docker environment around WMN for integration, modularity, and scalability with other OSINT tooling.
+
+## ✨ Features
+
+WMN-Docker offers straightforward functionality to compliment the original intent of WMN while ensuring a basic level of security and bonus features.
+
+- JWT Authentication
+- Username Lookup
+- Batch Username Lookup
+- Job Results
+
+## 📬 Contact
+**On the Web**: [KodamaChameleon.com](https://kodamachameleon.com/community)  
+**Email**: [contact@kodamachameleon.com](mailto:contact%40kodamachameleon.com?subject=WhatsMyName-Docker)
+
+## 📜 License
+
+![Creative Commons](https://img.shields.io/badge/Creative_Commons-4.0-white.svg?logo=creativecommons)
+
+[Creative Commons Attribution-ShareAlike 4.0 International License](http://creativecommons.org/licenses/by-sa/4.0/).
+"""
+
+tags_metadata = [
+    {
+        "name": "auth",
+        "description": "Authentication using using basic JSON Web Tokens (JWT)",
+    },
+    {
+        "name": "lookups",
+        "description": "Initiate a celery task to lookup usernames individually or in batch",
+    },
+    {
+      "name": "results",
+      "description": "Check the results status for a given job (single or batch)"  
+    },
+]
+
+app = FastAPI(
+    title="WhatsMyName-Docker",
+    description=description,
+    version="1.1.0",
+    openapi_tags=tags_metadata,
+    openapi_url="/api/v1/schema.json",
+    lifespan=lifespan
+)
 
 # Define the routes
-@app.post("/api/v1/token")
+@app.post("/api/v1/token", tags=["auth"])
 async def login_for_access_token(login_request: LoginRequest):
     """
     Authenticate the user by user_id and secret, and return a JWT token.
@@ -58,7 +105,7 @@ async def login_for_access_token(login_request: LoginRequest):
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@app.post("/api/v1/lookup", dependencies=[Depends(RateLimiter(times=RATE_LIMIT, seconds=60))])
+@app.post("/api/v1/lookup", dependencies=[Depends(RateLimiter(times=RATE_LIMIT, seconds=60))], tags=["lookups"])
 async def submit_username(request: UsernameLookup, user: dict =  Depends(optional_auth_dependency())):
     """
     Initiate task to lookup username
@@ -119,7 +166,7 @@ async def submit_username(request: UsernameLookup, user: dict =  Depends(optiona
         )
 
 
-@app.post("/api/v1/batch", dependencies=[Depends(RateLimiter(times=RATE_LIMIT, seconds=60))])
+@app.post("/api/v1/batch", dependencies=[Depends(RateLimiter(times=RATE_LIMIT, seconds=60))], tags=["lookups"])
 async def submit_batch_usernames(request: BatchLookup, user: dict = Depends(optional_auth_dependency())):
     """
     Submit multiple usernames for lookup as a batch.
@@ -174,7 +221,7 @@ async def submit_batch_usernames(request: BatchLookup, user: dict = Depends(opti
         )
 
 
-@app.get("/api/v1/status/{job_id}", dependencies=[Depends(RateLimiter(times=RATE_LIMIT, seconds=60))])
+@app.get("/api/v1/status/{job_id}", dependencies=[Depends(RateLimiter(times=RATE_LIMIT, seconds=60))], tags=["results"])
 async def job_status(job_id: str, user: dict = Depends(optional_auth_dependency())):
     """
     Check job status of username lookup or batch lookup.

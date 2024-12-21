@@ -20,10 +20,16 @@ WMN-Docker offers straightforward functionality to compliment the original inten
 - **Username Lookup**
   - Initiate a username lookup across the web
   - `/api/v1/lookup`
+- **Batch Username Lookup**
+  - Initiate a username lookup across the web for multiple users at once
+  - `/api/v1/batch`
 - **Job Results**
   - Returns the results of username lookup
   - Results are cached for performance (default 1 hour)
   - `/api/v1/status/{job_id}`
+- **Built-in Documentation**
+  - `/docs#/`
+  - `api/v1/schema.json`
 
 ## 🛠️ Getting Started
 
