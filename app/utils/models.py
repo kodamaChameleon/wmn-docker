@@ -2,7 +2,7 @@
 !/usr/bin/env python3
 -*- coding: utf-8 -*-
 Name:        config.py
-Purpose:     Configuration settings for WhatsMyName Docker API
+Purpose:     Models for WhatsMyName Docker API
 Author:      Kodama Chameleon <contact@kodamachameleon.com>
 Created:     11/11/2024
 Copyright:   (c) Kodama Chameleon 2024
