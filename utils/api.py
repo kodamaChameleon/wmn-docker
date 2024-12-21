@@ -10,6 +10,7 @@ Licence:     CC BY 4.0
 """
 import time
 import os
+import json
 from typing import Optional
 import requests
 from dotenv import load_dotenv
@@ -98,6 +99,36 @@ def submit_username(username, token=None):
         print(f"Error submitting username: {e}")
         return None
 
+def submit_batch_usernames(usernames, token=None):
+    """
+    Submit a batch of usernames to the API for processing.
+    """
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}/api/v1/batch",
+            json={"usernames": usernames},
+            headers=headers,
+            timeout=30
+        )
+        response.raise_for_status()
+        data = response.json()
+        master_job_id = data.get("master_job_id")
+        jobs = data.get("jobs", {})
+        print(f"Batch job submitted successfully! Master Job ID: {master_job_id}")
+
+        # Print each job's status
+        for username, job_info in jobs.items():
+            print(f"{Fore.CYAN}{username}{Style.RESET_ALL}: {job_info.get('status')} (Job ID: {job_info.get('job_id')})")
+        
+        return master_job_id
+
+        # Optionally, you could poll for each job's status here.
+    except requests.RequestException as e:
+        print(f"Error submitting batch usernames: {e}")
+
 def check_job_status(job_id, token=None):
     """
     Check the status of a job and return the result if completed.
@@ -117,51 +148,67 @@ def check_job_status(job_id, token=None):
         print(f"Error checking job status: {e}")
         return None
 
-def user_lookup(args):
+def poll_job_status(job_id, batch, token: str=None, output_file: str=None):
     """
-    Combine all API calls into a single username lookup.
+    Poll the job status until it completes.
     """
-    print(banner)
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
 
-    username = args.username
-    api_id = args.api_id or USER_ID
-    api_secret = args.api_secret or SECRET
-
-    # Check if authentication is required but credentials are missing
-    if AUTH_REQUIRED and (not api_id or not api_secret):
-        print(Fore.RED + "Error: API username and password are required but not provided." + Style.RESET_ALL)
-        return
-
-    # Obtain access token if authentication is required
-    token = None
-    if AUTH_REQUIRED:
-        token = get_access_token(api_id, api_secret)
-        if not token:
-            print(Fore.RED + "Failed to obtain access token. Exiting." + Style.RESET_ALL)
-            return
-
-    # Submit username to the API
-    job_id = submit_username(username, token)
-    if not job_id:
-        print(Fore.RED + "Failed to submit the username. Exiting." + Style.RESET_ALL)
-        return
-
-    # Poll the job status until it completes
     status_check_frequency = 10
     while True:
-        job_status = check_job_status(job_id, token)
-        if not job_status:
-            print(Fore.RED + "Error retrieving job status. Exiting." + Style.RESET_ALL)
+        try:
+            response = requests.get(
+                f"{API_BASE_URL}/api/v1/status/{job_id}",
+                headers=headers,
+                timeout=15
+            )
+            response.raise_for_status()
+            job_status = response.json()
+        except requests.RequestException as e:
+            print(f"{Fore.RED}Error checking job status: {e}{Style.RESET_ALL}")
             return
 
-        status = job_status.get("status")
-        if status == "Job complete":
-            print(f"Job ID {job_id} complete!!")
-            display_results(job_status["result"])
+        # Get job status
+        if batch:
+            
+            # Continue for loop until all are complete
+            for _, result in job_status.get("results").items():
+                status = result.get("status")
+                if result.get("status") == "error":
+                    raise ValueError(result.get("detail"))
+                elif result.get("status") != "complete":
+                    break
+        else:
+            status = job_status.get("status")
+            
+        if status == "complete":
+            print(f"Job ID {job_id} complete!")
+            results = job_status.get("results", {})
+            
+            if batch:
+                for username, subtask in results.items():
+                    print(f"\n{Fore.MAGENTA}RESULTS FOR {Fore.CYAN}{username.upper()}{Style.RESET_ALL}:")
+                    display_results(subtask.get("results", {}))
+            else:
+                try:
+                    username = results["username"]
+                    print(f"\n{Fore.MAGENTA}RESULTS FOR {Fore.CYAN}{username.upper()}{Style.RESET_ALL}:")
+                except Exception as e:
+                    print(Fore.RED + "Error determining username." + Style.RESET_ALL)
+                    
+                display_results(results)
+            
+            # If output file is specified, save results as json
+            if output_file:
+                with open(output_file, 'w') as f:
+                    json.dump(results, f, indent=2)
+                print(f"\nResults saved to {output_file}")
+
             break
 
-        if status == "Job failed":
-            print(f"{Fore.RED}\nJob failed:{Style.RESET_ALL}\n{job_status.get('error')}")
+        if status == "failed":
+            print(f"{Fore.RED}Job failed:{Style.RESET_ALL}\n{job_status.get('error')}")
             break
 
         # Countdown timer for status check
@@ -180,6 +227,43 @@ def user_lookup(args):
         # Clear the line after the countdown
         print(" " * max_length, end="\r")
 
+def user_lookup(args):
+    """
+    Combine all API calls into a single username or batch lookup.
+    """
+    print(banner)
+
+    usernames = args.username.split(",")  # Split comma-separated usernames into a list
+    api_id = args.api_id or USER_ID
+    api_secret = args.api_secret or SECRET
+
+    # Check if authentication is required but credentials are missing
+    if AUTH_REQUIRED and (not api_id or not api_secret):
+        print(Fore.RED + "Error: API username and password are required but not provided." + Style.RESET_ALL)
+        return
+
+    # Obtain access token if authentication is required
+    token = None
+    if AUTH_REQUIRED:
+        token = get_access_token(api_id, api_secret)
+        if not token:
+            print(Fore.RED + "Failed to obtain access token. Exiting." + Style.RESET_ALL)
+            return
+
+    if len(usernames) > 1:
+        # Handle batch submission
+        job_id = submit_batch_usernames(usernames, token)
+        batch = True
+    else:
+        # Single username submission
+        job_id = submit_username(usernames[0], token)
+        batch = False
+        if not job_id:
+            print(Fore.RED + "Failed to submit the username. Exiting." + Style.RESET_ALL)
+            return
+
+    poll_job_status(job_id, batch, token, args.output)
+
 def display_results(result):
     """
     Display the job results in a formatted manner.
@@ -190,7 +274,7 @@ def display_results(result):
 
     # Print each found website
     if websites:
-        print(f"{Fore.CYAN}\nFound Profiles:{Style.RESET_ALL}")
+        print(f"{Fore.MAGENTA}\nFound Profiles:{Style.RESET_ALL}")
         for site in websites:
             site_name, site_url = site
             print(f"  {Fore.GREEN}{site_name}:{Style.RESET_ALL} {site_url}")

@@ -80,6 +80,16 @@ curl -X POST "http://localhost:8000/api/v1/lookup" \
 ```
 Returns a Job ID to lookup results.
 
+**Submit Multiple Usernames at Once**
+```bash
+curl -X POST "http://localhost:8000/api/v1/batch" \
+     -H "Authorization: Bearer your_jwt_token" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "usernames": ["kodamachameleon", "webbreacher"]
+         }'
+```
+
 **Check Job Status**
 ```bash
 curl -X GET "http://localhost:8000/api/v1/status/your_job_id" \

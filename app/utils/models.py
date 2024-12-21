@@ -44,7 +44,7 @@ class BatchLookup(BaseModel):
     """
     Define data structure for username lookup
     """
-    username: List[str]
+    usernames: List[str]
 
 class LoginRequest(BaseModel):
     """

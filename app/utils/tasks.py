@@ -32,8 +32,8 @@ def check_username(username: str):
     """
     try:
         loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(username_lookup(username))
-        return result
+        results = loop.run_until_complete(username_lookup(username))
+        return results
 
     # Handle graceful timeout using SoftTimeLimitExceeded
     except SoftTimeLimitExceeded:
