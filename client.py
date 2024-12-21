@@ -18,9 +18,10 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="CLI client for the WMN API")
 
     # For API usage
-    parser.add_argument("-u", "--username", help="Username to lookup")
+    parser.add_argument("-u", "--username", help="Username to lookup (supports comma separated lists)")
     parser.add_argument("-I", "--api_id", help="API user ID for authentication (optional)")
     parser.add_argument("-S", "--api_secret", help="API secret for authentication (optional)")
+    parser.add_argument("-o", "--output", help="Specify a file output (json)")
 
     # Configure setup arguments
     parser.add_argument(
