@@ -86,7 +86,7 @@ def initialize_user_data():
             If the problem persist, delete {DB_FILE} and try again."
         )
 
-def create_new_user(user_id: str = None, secret: str = None):
+def create_new_user(user_id: str = None, secret: str = None) -> User:
     """
     Create a new user in the database
     """

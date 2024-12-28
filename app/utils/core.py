@@ -9,6 +9,7 @@ Copyright:   (c) Kodama Chameleon 2024
 Licence:     CC BY 4.0
 """
 import os
+from typing import Optional
 import asyncio
 import json
 import logging
@@ -35,7 +36,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("wmn-docker")
 
-async def username_lookup(username: str):
+async def username_lookup(username: str) -> dict:
     """
     Main lookup function for finding a username on various platforms.
     
@@ -68,7 +69,7 @@ async def username_lookup(username: str):
     logger.warning(f"No data found in WMN lookup for username: {username}")
 
 
-async def check_site(session, site, username):
+async def check_site(session: ClientSession, site: dict, username: str) -> Optional[list]:
     """Checks if the username exists on a specific site."""
     timeout = ClientTimeout(total=CHECK_SITE_TIMEOUT)
     try:
@@ -96,7 +97,7 @@ async def check_site(session, site, username):
     return None
 
 
-async def check_username_existence(username, data):
+async def check_username_existence(username: str, data: dict) -> list:
     """Checks multiple sites for the existence of a username."""
     # Configure SSL certificate verification
     connector = TCPConnector(ssl=SSL_WEBSITE_ENUMERATION)

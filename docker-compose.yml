@@ -2,7 +2,7 @@ version: "3.8"
 services:
 
   api:
-    image: kodamachameleon/whatsmyname:latest
+    image: kodamachameleon/whatsmyname:1.1.0
     ports:
       - "8000:8000"
     env_file: .env
@@ -16,7 +16,7 @@ services:
     command: uvicorn main:app --host 0.0.0.0 --port 8000
 
   celery_worker:
-    image: kodamachameleon/whatsmyname:latest
+    image: kodamachameleon/whatsmyname:1.1.0
     command: celery -A utils.tasks worker --loglevel=info
     env_file: .env
     environment:

@@ -106,7 +106,7 @@ async def login_for_access_token(login_request: LoginRequest):
 
 
 @app.post("/api/v1/lookup", dependencies=[Depends(RateLimiter(times=RATE_LIMIT, seconds=60))], tags=["lookups"])
-async def submit_username(request: UsernameLookup, user: dict =  Depends(optional_auth_dependency())):
+async def submit_username(request: UsernameLookup, user: dict =  Depends(optional_auth_dependency())) -> dict:
     """
     Initiate task to lookup username
     """
@@ -131,7 +131,7 @@ async def submit_username(request: UsernameLookup, user: dict =  Depends(optiona
             if task_result.state == 'PENDING':
                 logger.debug(f"Cached job_id {cached_job_id} is still pending.")
                 return {"job_id": cached_job_id}
-    
+
             # Results were successful without errors and returned results
             elif task_result.state == 'SUCCESS' and task_result.result and 'error' not in task_result.result:
                 logger.info(f"Cached job_id {cached_job_id} completed successfully with result: {task_result.result}")
@@ -167,7 +167,7 @@ async def submit_username(request: UsernameLookup, user: dict =  Depends(optiona
 
 
 @app.post("/api/v1/batch", dependencies=[Depends(RateLimiter(times=RATE_LIMIT, seconds=60))], tags=["lookups"])
-async def submit_batch_usernames(request: BatchLookup, user: dict = Depends(optional_auth_dependency())):
+async def submit_batch_usernames(request: BatchLookup, user: dict = Depends(optional_auth_dependency())) -> dict:
     """
     Submit multiple usernames for lookup as a batch.
     """
@@ -222,13 +222,16 @@ async def submit_batch_usernames(request: BatchLookup, user: dict = Depends(opti
 
 
 @app.get("/api/v1/status/{job_id}", dependencies=[Depends(RateLimiter(times=RATE_LIMIT, seconds=60))], tags=["results"])
-async def job_status(job_id: str, user: dict = Depends(optional_auth_dependency())):
+async def job_status(job_id: str, user: dict = Depends(optional_auth_dependency())) -> dict:
     """
     Check job status of username lookup or batch lookup.
     """
     try:
         # Validate the job_id format
-        if not re.match(r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$', job_id):
+        if not re.match(
+                r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
+                job_id
+            ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid job_id format. Must be a valid UUID."
@@ -255,13 +258,25 @@ async def job_status(job_id: str, user: dict = Depends(optional_auth_dependency(
                     aggregated_results[username] = {"status": "pending"}
                 elif task_result.state == 'SUCCESS':
                     if task_result.result and 'error' not in task_result.result:
-                        aggregated_results[username] = {"status": "complete", "results": task_result.result}
+                        aggregated_results[username] = {
+                            "status": "complete",
+                            "results": task_result.result
+                        }
                     else:
-                        aggregated_results[username] = {"status": "failed", "error": task_result.result.get('error', 'Unknown error')}
+                        aggregated_results[username] = {
+                            "status": "failed",
+                            "error": task_result.result.get('error', 'Unknown error')
+                        }
                 elif task_result.state == 'FAILURE':
-                    aggregated_results[username] = {"status": "failed", "error": str(task_result.info)}
+                    aggregated_results[username] = {
+                        "status": "failed",
+                        "error": str(task_result.info)
+                    }
                 else:
-                    aggregated_results[username] = {"status": "unknown", "state": task_result.state}
+                    aggregated_results[username] = {
+                        "status": "unknown",
+                        "state": task_result.state
+                    }
 
             return {"job_id": job_id, "type": "batch", "results": aggregated_results}
 
@@ -274,12 +289,27 @@ async def job_status(job_id: str, user: dict = Depends(optional_auth_dependency(
         if task_result.state == 'SUCCESS':
             logger.info(f"Job {job_id} completed successfully with results: {task_result.result}")
             if task_result.result and 'error' not in task_result.result:
-                return {"job_id": job_id, "status": "complete", "results": task_result.result, "type": "single"}
-            return {"job_id": job_id, "status": "failed", "error": task_result.result.get('error', 'Unknown error'), "type": "single"}
+                return {
+                    "job_id": job_id,
+                    "status": "complete",
+                    "results": task_result.result,
+                    "type": "single"
+                }
+            return {
+                "job_id": job_id,
+                "status": "failed",
+                "error": task_result.result.get('error', 'Unknown error'),
+                "type": "single"
+            }
 
         if task_result.state == 'FAILURE':
             logger.error(f"Job {job_id} failed with error: {task_result.info}")
-            return {"job_id": job_id, "status": "failed", "error": str(task_result.info), "type": "single"}
+            return {
+                "job_id": job_id,
+                "status": "failed",
+                "error": str(task_result.info),
+                "type": "single"
+            }
 
         logger.warning(f"Job {job_id} is in an unknown state: {task_result.state}")
         return {"job_id": job_id, "status": "unknown", "state": task_result.state, "type": "single"}

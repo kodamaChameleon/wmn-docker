@@ -61,7 +61,12 @@ def get_access_token(user_id: str, secret: str) -> Optional[str]:
     try:
         # Send the POST request to get the access token
         api_url = f"{API_BASE_URL}/api/v1/token"
-        response = requests.post(api_url, json=payload, headers=headers)
+        response = requests.post(
+            api_url,
+            json=payload,
+            headers=headers,
+            timeout=15
+        )
 
         # Check if the response status is OK
         if response.status_code == 200:
@@ -77,7 +82,7 @@ def get_access_token(user_id: str, secret: str) -> Optional[str]:
         print(f"Error while requesting access token: {e}")
         return None
 
-def submit_username(username, token=None):
+def submit_username(username: str, token=None) -> Optional[str]:
     """
     Submit a username to the API for processing.
     """
@@ -99,7 +104,7 @@ def submit_username(username, token=None):
         print(f"Error submitting username: {e}")
         return None
 
-def submit_batch_usernames(usernames, token=None):
+def submit_batch_usernames(usernames: list, token=None) -> Optional[str]:
     """
     Submit a batch of usernames to the API for processing.
     """
@@ -122,14 +127,14 @@ def submit_batch_usernames(usernames, token=None):
         # Print each job's status
         for username, job_info in jobs.items():
             print(f"{Fore.CYAN}{username}{Style.RESET_ALL}: {job_info.get('status')} (Job ID: {job_info.get('job_id')})")
-        
+
         return master_job_id
 
-        # Optionally, you could poll for each job's status here.
     except requests.RequestException as e:
         print(f"Error submitting batch usernames: {e}")
+        return None
 
-def check_job_status(job_id, token=None):
+def check_job_status(job_id: str, token=None) -> Optional[dict]:
     """
     Check the status of a job and return the result if completed.
     """
@@ -148,7 +153,13 @@ def check_job_status(job_id, token=None):
         print(f"Error checking job status: {e}")
         return None
 
-def poll_job_status(job_id, batch, token: str=None, output_file: str=None, username: str=None):
+def poll_job_status(
+        job_id: str,
+        batch: bool,
+        token: str=None,
+        output_file: str=None,
+        username: str=None
+    ):
     """
     Poll the job status until it completes.
     """
@@ -171,7 +182,7 @@ def poll_job_status(job_id, batch, token: str=None, output_file: str=None, usern
 
         # Get job status
         if batch:
-            
+
             # Continue for loop until all are complete
             for _, result in job_status.get("results").items():
                 status = result.get("status")
@@ -181,23 +192,23 @@ def poll_job_status(job_id, batch, token: str=None, output_file: str=None, usern
                     break
         else:
             status = job_status.get("status")
-            
+
         if status == "complete":
             print(f"Job ID {job_id} complete!")
             results = job_status.get("results", {})
-            
+
             if batch:
-                for username, subtask in results.items():
-                    print(f"\n{Fore.MAGENTA}RESULTS FOR {Fore.CYAN}{username.upper()}{Style.RESET_ALL}:")
+                for sub_username, subtask in results.items():
+                    print(f"\n{Fore.MAGENTA}RESULTS FOR {Fore.CYAN}{sub_username.upper()}{Style.RESET_ALL}:")
                     display_results(subtask.get("results", {}))
             else:
                 try:
                     print(f"\n{Fore.MAGENTA}RESULTS FOR {Fore.CYAN}{username.upper()}{Style.RESET_ALL}:")
                 except Exception as e:
                     print(Fore.RED + "Error determining username." + Style.RESET_ALL)
-                    
+
                 display_results(results)
-            
+
             # If output file is specified, save results as json
             if output_file:
                 with open(output_file, 'w') as f:
@@ -214,15 +225,15 @@ def poll_job_status(job_id, batch, token: str=None, output_file: str=None, usern
         max_length = 0
         for remaining in range(status_check_frequency, 0, -1):
             message = f"{Fore.YELLOW}Job Pending: Checking again in {Style.RESET_ALL}{remaining}"
-            
+
             # Pad the message before printing
             if len(message) > max_length:
                 max_length = len(message)
             message = message + " "*(max_length - len(message))
-            
+
             print(message, end="\r")
             time.sleep(1)
-        
+
         # Clear the line after the countdown
         print(" " * max_length, end="\r")
 
