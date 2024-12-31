@@ -9,6 +9,7 @@ Copyright:   (c) Kodama Chameleon 2024
 Licence:     CC BY 4.0
 """
 import os
+from typing import Optional
 import asyncio
 from celery import Celery
 from celery.exceptions import SoftTimeLimitExceeded
@@ -26,14 +27,14 @@ celery = Celery(
 celery.conf.broker_connection_retry_on_startup = True
 
 @celery.task(soft_time_limit=JOB_TIMEOUT, time_limit=(JOB_TIMEOUT+60))
-def check_username(username: str):
+def check_username(username: str) -> Optional[dict]:
     """
     Launch asynchronous task to lookup username
     """
     try:
         loop = asyncio.get_event_loop()
-        result = loop.run_until_complete(username_lookup(username))
-        return result
+        results = loop.run_until_complete(username_lookup(username))
+        return results
 
     # Handle graceful timeout using SoftTimeLimitExceeded
     except SoftTimeLimitExceeded:

@@ -9,7 +9,6 @@ Copyright:   (c) Kodama Chameleon 2024
 Licence:     CC BY 4.0
 """
 import os
-from pydantic import BaseModel
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer
 
@@ -28,7 +27,7 @@ SSL_WEBSITE_ENUMERATION = os.getenv("SSL_WEBSITE_ENUMERATION", "false").lower() 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 # App Specific
-DB_FILE = "/home/kodama/wmn.db"
+DB_FILE = "/home/kodama/user.db"
 WMN_URL = "https://raw.githubusercontent.com/WebBreacher/WhatsMyName/main/wmn-data.json"
 WMN_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
@@ -58,39 +57,3 @@ Be sure to save this secret somewhere safe!
 # Ensure SECRET_KEY exists and is properly formatted
 if not SECRET_KEY:
     raise ValueError("SECRET KEY required")
-
-# Define the request models
-class User(BaseModel):
-    """
-    Define User Data Structure
-    """
-    user_id: str
-    secret: str
-    disabled: bool = False
-
-class Users(BaseModel):
-    """
-    Define Users as list of User
-    """
-    users: list[User]
-
-    class Config:
-        """
-        Manage encoders
-        """
-        json_encoders = {
-            str: lambda v: v
-        }
-
-class UsernameLookup(BaseModel):
-    """
-    Define data structure for username lookup
-    """
-    username: str
-
-class LoginRequest(BaseModel):
-    """
-    Define data structure for login requests
-    """
-    user_id: str
-    secret: str

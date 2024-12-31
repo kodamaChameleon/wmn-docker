@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.10.12-yellow.svg?logo=python) <!-- GEN:Docker -->![Docker](https://img.shields.io/badge/Docker-24.0.7-blue.svg?logo=docker)<!-- GEN:stop -->
 
-Version: 1.0.0
+Version: 1.1.0
 
 ## 💎 About
 
@@ -18,10 +18,16 @@ WMN-Docker offers straightforward functionality to compliment the original inten
 - **Username Lookup**
   - Initiate a username lookup across the web
   - `/api/v1/lookup`
+- **Batch Username Lookup**
+  - Initiate a username lookup across the web for multiple users at once
+  - `/api/v1/batch`
 - **Job Results**
   - Returns the results of username lookup
   - Results are cached for performance (default 1 hour)
   - `/api/v1/status/{job_id}`
+- **Built-in Documentation**
+  - `/docs#/`
+  - `api/v1/schema.json`
 
 ## 🛠️ Getting Started
 
@@ -53,13 +59,15 @@ source .venv/bin/activate
 ### Initialize User Database
 By default, authentication is required. *If you wish to disble this requirement (not recommended for production environments), set AUTH_REQUIRED=False in your .env file.* To initialize the user database and retrieve credentials:
 - Execute `docker ps` to obtain the container id of the api.
-- Launch a bash shell with `docker exec -it <api_container_id> bash`
-- Initialize the database by running `python3 users.py initialize`
+- Initialize the database by running `docker exec <api_container_id> python3 users.py initialize`
 - Save the initial credentials in a safe location.
 
 > 💡 Additional user management features are available from the users.py command line utility inside the container. Just run `python3 users.py -h`
 
 ### Example Usage
+
+![WMN Example](./utils/example.png)
+
 The client.py sub-library, [api.py](utils/api.py), already contains an example python wrapper for API usage. Here are a few more examples to get you started using curl.
 
 **Authentication**
@@ -78,6 +86,16 @@ curl -X POST "http://localhost:8000/api/v1/lookup" \
      -d '{"username": "kodamachameleon"}'
 ```
 Returns a Job ID to lookup results.
+
+**Submit Multiple Usernames at Once**
+```bash
+curl -X POST "http://localhost:8000/api/v1/batch" \
+     -H "Authorization: Bearer your_jwt_token" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "usernames": ["kodamachameleon", "webbreacher"]
+         }'
+```
 
 **Check Job Status**
 ```bash

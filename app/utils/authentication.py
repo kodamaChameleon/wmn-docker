@@ -19,9 +19,9 @@ from .config import (
     AUTH_REQUIRED,
     pwd_context,
     oauth2_scheme,
-    ACCESS_TOKEN_EXPIRATION,
-    User
+    ACCESS_TOKEN_EXPIRATION
 )
+from .models import User
 from .core import logger
 
 def authenticate_user(user_id: str, secret: str) -> User:
@@ -49,10 +49,13 @@ def authenticate_user(user_id: str, secret: str) -> User:
 
     except Exception as e:
         logger.error(f"Unknown error while authenticating user {user_id}: {e}")
-        raise HTTPException(status_code=500, detail="Unknown error during authentication")
+        raise HTTPException(
+            status_code=500,
+            detail="Unknown error during authentication"
+        )
 
 # Token generation function
-def create_access_token(data: dict):
+def create_access_token(data: dict) -> jwt:
     """
     Creates a JWT token using the provided data (e.g., user ID).
     """
@@ -67,7 +70,7 @@ def create_access_token(data: dict):
     return encoded_jwt
 
 # Dependency for extracting and verifying JWT token
-def get_current_user(token: str = Depends(oauth2_scheme)):
+def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     """
     Extracts and verifies the JWT token, returns the user ID from the payload.
     """
@@ -84,14 +87,20 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         # Check if the token has expired
         if exp and datetime.now(timezone.utc) > datetime.fromtimestamp(exp, tz=timezone.utc):
             logger.error(f"Token has expired: '{token}'")
-            raise HTTPException(status_code=401, detail="Token has expired")
+            raise HTTPException(
+                status_code=401,
+                detail="Token has expired"
+            )
 
         token_data = {"user_id": user_id}
 
     # Invalid token
     except jwt.ExpiredSignatureError:
         logger.error(f"Token has expired: '{token}'")
-        raise HTTPException(status_code=401, detail="Token has expired")
+        raise HTTPException(
+            status_code=401,
+            detail="Token has expired"
+        )
 
     except jwt.InvalidTokenError:
         logger.error(f"Invalid token '{token}'")

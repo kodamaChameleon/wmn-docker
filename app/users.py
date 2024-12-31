@@ -15,7 +15,8 @@ import random
 import string
 from cryptography.fernet import Fernet
 
-from utils.config import FERNET_KEY, DB_FILE, CREDENTIALS_BANNER, pwd_context, User, Users
+from utils.config import FERNET_KEY, DB_FILE, CREDENTIALS_BANNER, pwd_context
+from utils.models import User, Users
 from utils.core import logger
 
 cipher_suite = Fernet(FERNET_KEY)
@@ -85,7 +86,7 @@ def initialize_user_data():
             If the problem persist, delete {DB_FILE} and try again."
         )
 
-def create_new_user(user_id: str = None, secret: str = None):
+def create_new_user(user_id: str = None, secret: str = None) -> User:
     """
     Create a new user in the database
     """
