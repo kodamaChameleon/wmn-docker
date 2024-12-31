@@ -2,9 +2,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.10.12-yellow.svg?logo=python) <!-- GEN:Docker -->![Docker](https://img.shields.io/badge/Docker-24.0.7-blue.svg?logo=docker)<!-- GEN:stop -->
 
-Version: 1.1.0_beta
-
-> 🚧 1.1.0_beta is under construction. Use the main branch for stable releases.
+Version: 1.1.0
 
 ## 💎 About
 
@@ -67,6 +65,9 @@ By default, authentication is required. *If you wish to disble this requirement 
 > 💡 Additional user management features are available from the users.py command line utility inside the container. Just run `python3 users.py -h`
 
 ### Example Usage
+
+![WMN Example](./utils/example.png)
+
 The client.py sub-library, [api.py](utils/api.py), already contains an example python wrapper for API usage. Here are a few more examples to get you started using curl.
 
 **Authentication**
