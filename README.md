@@ -2,7 +2,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.10.12-yellow.svg?logo=python) <!-- GEN:Docker -->![Docker](https://img.shields.io/badge/Docker-24.0.7-blue.svg?logo=docker)<!-- GEN:stop -->
 
-Version: 1.1.0
+Version: 1.1.1
 
 ## 💎 About
 
@@ -58,8 +58,7 @@ source .venv/bin/activate
 
 ### Initialize User Database
 By default, authentication is required. *If you wish to disble this requirement (not recommended for production environments), set AUTH_REQUIRED=False in your .env file.* To initialize the user database and retrieve credentials:
-- Execute `docker ps` to obtain the container id of the api.
-- Initialize the database by running `docker exec <api_container_id> python3 users.py initialize`
+- Initialize the database by running `docker exec -it wmn-docker-api-1 python3 users.py initialize`
 - Save the initial credentials in a safe location.
 
 > 💡 Additional user management features are available from the users.py command line utility inside the container. Just run `python3 users.py -h`
