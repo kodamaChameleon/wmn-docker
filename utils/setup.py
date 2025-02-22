@@ -60,7 +60,12 @@ def build_docker_container():
     try:
         # Build the Docker container
         print("Building the Docker container from the Dockerfile...")
-        subprocess.check_call(['docker-compose', 'build'])
+        try:
+            subprocess.check_call(['docker-compose', 'build'])
+        except Exception as e:
+            # Try docker compose v2
+            subprocess.check_call(['docker', 'compose', 'build'])
+
         print("Docker container built successfully.")
     except subprocess.CalledProcessError as e:
         print(f"Failed to build the Docker container: {e}")
@@ -75,11 +80,22 @@ def start_docker_containers(context: str):
     try:
         if context == "dev":
             # Use the dev-specific docker-compose file
-            subprocess.check_call(['docker-compose', '-f', 'docker-compose-dev.yml', 'up', '-d'])
+            try:
+                subprocess.check_call(['docker-compose', '-f', 'docker-compose-dev.yml', 'up', '-d'])
+                
+            except Exception as e:
+                # Try using docker compose v2
+                subprocess.check_call(['docker', 'compose', '-f', 'docker-compose-dev.yml', 'up', '-d'])
+
             print("Spinning up containers in development mode.")
         elif context == "prod":
             # Use the prod-specific docker-compose file
-            subprocess.check_call(['docker-compose', '-f', 'docker-compose.yml', 'up', '-d'])
+            try:
+                subprocess.check_call(['docker-compose', '-f', 'docker-compose.yml', 'up', '-d'])
+            except Exception as e:
+                # Try using docker compose v2
+                subprocess.check_call(['docker', 'compose', '-f', 'docker-compose.yml', 'up', '-d'])
+
             print("Spinning up containers in production mode.")
         else:
             raise ValueError("Unknown context. Please specify 'dev' or 'prod'.")
