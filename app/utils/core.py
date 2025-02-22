@@ -19,22 +19,46 @@ from aiohttp import TCPConnector, ClientSession, ClientError, ClientTimeout
 from .config import (
     LOG_DIR,
     LOG_FILE,
+    LOGFORMAT,
+    VERBOSE,
     WMN_HEADERS,
     WMN_URL,
     SSL_WEBSITE_ENUMERATION,
     CHECK_SITE_TIMEOUT
 )
 
-# Configure logging with rotation
-os.makedirs(LOG_DIR, exist_ok=True)
-log_file = os.path.join(LOG_DIR, LOG_FILE)
-handler = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=5)
-logging.basicConfig(
-    level=logging.INFO,
-    handlers=[handler],
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("wmn-docker")
+def initialize_logger(verbose: bool = False):
+    """
+    Initialize the logger for the application.
+    """
+    # Ensure log directory exists
+    os.makedirs(LOG_DIR, exist_ok=True)
+    log_file_path = os.path.join(LOG_DIR, LOG_FILE)
+
+    # Set logging level
+    logging_level = logging.DEBUG if verbose else logging.INFO
+
+    # File handler (writes to a rotating log file)
+    file_formatter = logging.Formatter(LOGFORMAT)
+    file_handler = RotatingFileHandler(log_file_path, maxBytes=5 * 1024 * 1024, backupCount=5)
+    file_handler.setLevel(logging_level)
+    file_handler.setFormatter(file_formatter)
+
+    # Console handler (writes to stdout)
+    console_formatter = logging.Formatter("%(levelname)s:     %(message)s")
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging_level)
+    console_handler.setFormatter(console_formatter)
+
+    # Create logger
+    logger = logging.getLogger("ambivis")
+    logger.setLevel(logging_level)
+    logger.addHandler(file_handler)
+    logger.addHandler(console_handler)
+
+    return logger
+
+logger = initialize_logger(VERBOSE)
 
 async def username_lookup(username: str) -> dict:
     """
