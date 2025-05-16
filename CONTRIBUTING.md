@@ -88,9 +88,6 @@ To ensure consistency and code quality, please follow these rules:
 ## 🧪 Testing
 Before submitting a pull request, ensure that all tests pass. Add tests for any new functionality where appropriate. We aim for high test coverage, so please prioritize creating meaningful tests. Please document thoroughly what testing was completed in your pull request.
 
-## 🤝 Join the Discussion
-We encourage active participation and collaboration. Join the conversation on our [Discord](https://discord.gg/D59w9g6Ptr) and engage with the community. Feel free to ask questions or seek guidance on ongoing development tasks.
-
 ## 📄 License
 By contributing to WMN-Docker, you agree that your contributions will be licensed under the [Creative Commons Attribution-ShareAlike 4.0 International License](http://creativecommons.org/licenses/by-sa/4.0/).
 
