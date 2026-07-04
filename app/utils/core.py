@@ -9,6 +9,7 @@ Copyright:   (c) Kodama Chameleon 2024
 Licence:     CC BY 4.0
 """
 import os
+import time
 from typing import Optional
 import asyncio
 import json
@@ -24,7 +25,8 @@ from .config import (
     WMN_HEADERS,
     WMN_URL,
     SSL_WEBSITE_ENUMERATION,
-    CHECK_SITE_TIMEOUT
+    CHECK_SITE_TIMEOUT,
+    CACHE_EXPIRATION
 )
 
 def initialize_logger(verbose: bool = False):
@@ -59,21 +61,26 @@ def initialize_logger(verbose: bool = False):
 
 logger = initialize_logger(VERBOSE)
 
-async def username_lookup(username: str) -> dict:
-    """
-    Main lookup function for finding a username on various platforms.
-    
-    Args:
-        username (str): The username to lookup.
+# In-memory cache for the WMN site list so concurrent/back-to-back lookups
+# don't each redownload the full (~250KB, 700+ site) dataset from GitHub.
+_wmn_data_cache = {"data": None, "fetched_at": 0.0}
+_wmn_data_lock = asyncio.Lock()
 
-    Returns:
-        list: A list of found sites with the username.
+async def fetch_wmn_data() -> Optional[dict]:
     """
-    logger.info(f"Looking up username: {username}")
-    data = None
+    Fetch the WMN site list, cached in memory for CACHE_EXPIRATION seconds.
+    """
+    now = time.monotonic()
+    if _wmn_data_cache["data"] is not None and now - _wmn_data_cache["fetched_at"] < CACHE_EXPIRATION:
+        return _wmn_data_cache["data"]
 
-    async with ClientSession() as session:
-        try:
+    async with _wmn_data_lock:
+        # Another task may have refreshed the cache while we waited for the lock
+        now = time.monotonic()
+        if _wmn_data_cache["data"] is not None and now - _wmn_data_cache["fetched_at"] < CACHE_EXPIRATION:
+            return _wmn_data_cache["data"]
+
+        async with ClientSession() as session:
             response = await session.get(WMN_URL, headers=WMN_HEADERS)
             if response.content_type != 'application/json':
                 data_content = await response.text()
@@ -81,9 +88,27 @@ async def username_lookup(username: str) -> dict:
             else:
                 data = await response.json()
 
-        except Exception as e:
-            logger.error(f"Error fetching WMN data: {e}")
-            return []
+        _wmn_data_cache["data"] = data
+        _wmn_data_cache["fetched_at"] = now
+        return data
+
+async def username_lookup(username: str) -> dict:
+    """
+    Main lookup function for finding a username on various platforms.
+
+    Args:
+        username (str): The username to lookup.
+
+    Returns:
+        list: A list of found sites with the username.
+    """
+    logger.info(f"Looking up username: {username}")
+
+    try:
+        data = await fetch_wmn_data()
+    except Exception as e:
+        logger.error(f"Error fetching WMN data: {e}")
+        return []
 
     if data:
         found_sites, stats = await check_username_existence(username, data)
