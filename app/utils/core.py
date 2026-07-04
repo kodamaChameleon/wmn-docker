@@ -120,15 +120,21 @@ async def username_lookup(username: str) -> dict:
 async def check_site(session: ClientSession, site: dict, username: str) -> Optional[list]:
     """Checks if the username exists on a specific site."""
     timeout = ClientTimeout(total=CHECK_SITE_TIMEOUT)
+    checked_uri = site["uri_check"].format(account=username)
     try:
         async with session.get(
-            site["uri_check"].format(account=username),
+            checked_uri,
             headers=WMN_HEADERS,
             timeout=timeout
         ) as response:
             text = await response.text()
+
+            # Check for redirects and ensure the username is in the final URL
+            if response.history and username.lower() not in str(response.url).lower():
+                return None
+
             if response.status == site["e_code"] and site["e_string"] in text:
-                return site["name"], site["uri_check"].format(account=username)
+                return site["name"], checked_uri
 
     except asyncio.TimeoutError:
         logger.error(f"Timeout error checking {site['name']}")
