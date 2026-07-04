@@ -12,6 +12,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 import base64
 
 def install_dependencies():
@@ -53,16 +54,23 @@ def populate_env_with_secrets():
     else:
         print(f"{env_file} does not exist. Ensure you have copied .env_sample to .env first.")
 
+_compose_cmd = None
+
+def _get_compose_cmd():
+    """
+    Detect whether `docker-compose` (v1) is installed, falling back to the
+    `docker compose` v2 syntax otherwise. Detected once per process and cached.
+    """
+    global _compose_cmd
+    if _compose_cmd is None:
+        _compose_cmd = ['docker-compose'] if shutil.which('docker-compose') else ['docker', 'compose']
+    return _compose_cmd
+
 def run_compose(args: list):
     """
-    Run a docker-compose command, falling back to the `docker compose` v2
-    syntax only if the v1 `docker-compose` binary isn't installed.
+    Run a docker-compose command using whichever compose CLI is available.
     """
-    try:
-        subprocess.check_call(['docker-compose', *args])
-    except FileNotFoundError:
-        # docker-compose v1 isn't installed; try docker compose v2
-        subprocess.check_call(['docker', 'compose', *args])
+    subprocess.check_call([*_get_compose_cmd(), *args])
 
 def build_docker_container():
     """
@@ -96,7 +104,7 @@ def start_docker_containers(context: str):
             raise ValueError("Unknown context. Please specify 'dev' or 'prod'.")
 
         # Wait for containers to initialize
-        subprocess.call(['sleep', '5'])
+        time.sleep(5)
         print("Docker containers are up and running.")
     except subprocess.CalledProcessError as e:
         print(f"Failed to launch docker-compose: {e}")
