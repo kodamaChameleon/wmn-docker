@@ -16,7 +16,7 @@ from fastapi.security import OAuth2PasswordBearer
 LOG_DIR = "/var/log/wmn-docker"
 LOG_FILE = "wmn.log"
 LOGFORMAT = '%(asctime)s %(name)s.%(levelname)s: %(message)s'
-VERBOSE = os.getenv('VERBOSE', False)
+VERBOSE = os.getenv('VERBOSE', 'false').lower() == 'true'
 
 # Task management
 RATE_LIMIT = int(os.getenv("RATE_LIMIT", 20))

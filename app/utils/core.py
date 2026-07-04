@@ -41,22 +41,21 @@ def initialize_logger(verbose: bool = False):
     # File handler (writes to a rotating log file)
     file_formatter = logging.Formatter(LOGFORMAT)
     file_handler = RotatingFileHandler(log_file_path, maxBytes=5 * 1024 * 1024, backupCount=5)
-    file_handler.setLevel(logging_level)
     file_handler.setFormatter(file_formatter)
 
     # Console handler (writes to stdout)
     console_formatter = logging.Formatter("%(levelname)s:     %(message)s")
     console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging_level)
     console_handler.setFormatter(console_formatter)
 
-    # Create logger
-    logger = logging.getLogger("ambivis")
-    logger.setLevel(logging_level)
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
+    # Attach handlers to the root logger so third-party library loggers
+    # (aiohttp, asyncio, etc.) are captured alongside the app's own logs.
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging_level)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
 
-    return logger
+    return logging.getLogger("wmn-docker")
 
 logger = initialize_logger(VERBOSE)
 
