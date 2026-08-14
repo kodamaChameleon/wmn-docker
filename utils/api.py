@@ -14,12 +14,11 @@ import json
 from typing import Optional
 import requests
 from dotenv import load_dotenv
-import colorama
-from colorama import Fore, Style
+from colorama import Fore, Style, init
 
 # Initialize env and colorama
 load_dotenv(override=True)
-colorama.init(autoreset=True)
+init(autoreset=True)
 
 banner = Fore.GREEN + f"""\
  _    _ _           _       ___  ___      _   _                            ______           _             

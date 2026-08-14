@@ -9,6 +9,7 @@ Copyright:   (c) Kodama Chameleon 2024
 Licence:     CC BY 4.0
 """
 import os
+import time
 from typing import Optional
 import asyncio
 import json
@@ -19,38 +20,67 @@ from aiohttp import TCPConnector, ClientSession, ClientError, ClientTimeout
 from .config import (
     LOG_DIR,
     LOG_FILE,
+    LOGFORMAT,
+    VERBOSE,
     WMN_HEADERS,
     WMN_URL,
     SSL_WEBSITE_ENUMERATION,
-    CHECK_SITE_TIMEOUT
+    CHECK_SITE_TIMEOUT,
+    CACHE_EXPIRATION
 )
 
-# Configure logging with rotation
-os.makedirs(LOG_DIR, exist_ok=True)
-log_file = os.path.join(LOG_DIR, LOG_FILE)
-handler = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=5)
-logging.basicConfig(
-    level=logging.INFO,
-    handlers=[handler],
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("wmn-docker")
-
-async def username_lookup(username: str) -> dict:
+def initialize_logger(verbose: bool = False):
     """
-    Main lookup function for finding a username on various platforms.
-    
-    Args:
-        username (str): The username to lookup.
-
-    Returns:
-        list: A list of found sites with the username.
+    Initialize the logger for the application.
     """
-    logger.info(f"Looking up username: {username}")
-    data = None
+    # Ensure log directory exists
+    os.makedirs(LOG_DIR, exist_ok=True)
+    log_file_path = os.path.join(LOG_DIR, LOG_FILE)
 
-    async with ClientSession() as session:
-        try:
+    # Set logging level
+    logging_level = logging.DEBUG if verbose else logging.INFO
+
+    # File handler (writes to a rotating log file)
+    file_formatter = logging.Formatter(LOGFORMAT)
+    file_handler = RotatingFileHandler(log_file_path, maxBytes=5 * 1024 * 1024, backupCount=5)
+    file_handler.setFormatter(file_formatter)
+
+    # Console handler (writes to stdout)
+    console_formatter = logging.Formatter("%(levelname)s:     %(message)s")
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(console_formatter)
+
+    # Attach handlers to the root logger so third-party library loggers
+    # (aiohttp, asyncio, etc.) are captured alongside the app's own logs.
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging_level)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(console_handler)
+
+    return logging.getLogger("wmn-docker")
+
+logger = initialize_logger(VERBOSE)
+
+# In-memory cache for the WMN site list so concurrent/back-to-back lookups
+# don't each redownload the full (~250KB, 700+ site) dataset from GitHub.
+_wmn_data_cache = {"data": None, "fetched_at": 0.0}
+_wmn_data_lock = asyncio.Lock()
+
+async def fetch_wmn_data() -> Optional[dict]:
+    """
+    Fetch the WMN site list, cached in memory for CACHE_EXPIRATION seconds.
+    """
+    now = time.monotonic()
+    if _wmn_data_cache["data"] is not None and now - _wmn_data_cache["fetched_at"] < CACHE_EXPIRATION:
+        return _wmn_data_cache["data"]
+
+    async with _wmn_data_lock:
+        # Another task may have refreshed the cache while we waited for the lock
+        now = time.monotonic()
+        if _wmn_data_cache["data"] is not None and now - _wmn_data_cache["fetched_at"] < CACHE_EXPIRATION:
+            return _wmn_data_cache["data"]
+
+        async with ClientSession() as session:
             response = await session.get(WMN_URL, headers=WMN_HEADERS)
             if response.content_type != 'application/json':
                 data_content = await response.text()
@@ -58,9 +88,27 @@ async def username_lookup(username: str) -> dict:
             else:
                 data = await response.json()
 
-        except Exception as e:
-            logger.error(f"Error fetching WMN data: {e}")
-            return []
+        _wmn_data_cache["data"] = data
+        _wmn_data_cache["fetched_at"] = now
+        return data
+
+async def username_lookup(username: str) -> dict:
+    """
+    Main lookup function for finding a username on various platforms.
+
+    Args:
+        username (str): The username to lookup.
+
+    Returns:
+        list: A list of found sites with the username.
+    """
+    logger.info(f"Looking up username: {username}")
+
+    try:
+        data = await fetch_wmn_data()
+    except Exception as e:
+        logger.error(f"Error fetching WMN data: {e}")
+        return []
 
     if data:
         found_sites, stats = await check_username_existence(username, data)
@@ -72,15 +120,21 @@ async def username_lookup(username: str) -> dict:
 async def check_site(session: ClientSession, site: dict, username: str) -> Optional[list]:
     """Checks if the username exists on a specific site."""
     timeout = ClientTimeout(total=CHECK_SITE_TIMEOUT)
+    checked_uri = site["uri_check"].format(account=username)
     try:
         async with session.get(
-            site["uri_check"].format(account=username),
+            checked_uri,
             headers=WMN_HEADERS,
             timeout=timeout
         ) as response:
             text = await response.text()
+
+            # Check for redirects and ensure the username is in the final URL
+            if response.history and username.lower() not in str(response.url).lower():
+                return None
+
             if response.status == site["e_code"] and site["e_string"] in text:
-                return site["name"], site["uri_check"].format(account=username)
+                return site["name"], checked_uri
 
     except asyncio.TimeoutError:
         logger.error(f"Timeout error checking {site['name']}")
