@@ -14,6 +14,8 @@ SITE = {
     "uri_check": "https://example.com/users/{account}",
     "e_code": 200,
     "e_string": "Profile of",
+    "m_code": 404,
+    "m_string": "Page not found",
 }
 
 
@@ -98,6 +100,36 @@ async def test_check_site_not_found(status, text):
     session = FakeSession(FakeResponse(status, text))
 
     assert await core.check_site(session, SITE, "kodama") is None
+
+
+SHARED_CODE_SITE = dict(SITE, m_code=200, m_string="User not found")
+
+
+@pytest.mark.parametrize("text, found", [
+    ("<h1>Profile of</h1><p>User not found</p>", False),
+    ("<h1>Profile of kodama</h1>", True),
+])
+async def test_check_site_shared_code_uses_miss_string(text, found):
+    session = FakeSession(FakeResponse(200, text))
+
+    result = await core.check_site(session, SHARED_CODE_SITE, "kodama")
+
+    assert (result is not None) == found
+
+
+async def test_check_site_shared_code_empty_miss_string_is_found():
+    site = dict(SITE, m_code=200, m_string="")
+    session = FakeSession(FakeResponse(200, "<h1>Profile of kodama</h1>"))
+
+    assert await core.check_site(session, site, "kodama") is not None
+
+
+async def test_check_site_distinct_codes_ignore_miss_string():
+    # Miss string is a substring of the hit string; the status code already disambiguates
+    site = dict(SITE, e_string="- Academia.edu", m_code=404, m_string="Academia.edu")
+    session = FakeSession(FakeResponse(200, "<title>kodama - Academia.edu</title>"))
+
+    assert await core.check_site(session, site, "kodama") is not None
 
 
 async def test_check_site_redirect_away_from_username_is_ignored():
