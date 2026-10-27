@@ -26,14 +26,6 @@ class Users(BaseModel):
     """
     users: List[User]
 
-    class Config:
-        """
-        Manage encoders
-        """
-        json_encoders = {
-            str: lambda v: v
-        }
-
 class UsernameLookup(BaseModel):
     """
     Define data structure for username lookup

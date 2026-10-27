@@ -115,7 +115,8 @@ async def lifespan(_: FastAPI):
     """
     await FastAPILimiter.init(redis_connection)
     yield
-    await FastAPILimiter.close()
+    # FastAPILimiter.close() uses redis' deprecated close(); close the connection directly
+    await redis_connection.aclose()
 
 # Initialize the FastAPI app and FastAPILimiter
 description = """
