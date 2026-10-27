@@ -5,6 +5,7 @@ from uuid import UUID
 
 import pytest
 
+from main import batch_cache_key, username_cache_key
 from utils.config import CACHE_EXPIRATION
 
 BATCH_URL = "/api/v1/batch"
@@ -41,9 +42,9 @@ def test_each_batch_gets_a_distinct_master_job_id(client):
 async def test_master_job_is_stored_in_redis(client, fake_redis):
     body = client.post(BATCH_URL, json={"usernames": ["alice", "bad name"]}).json()
 
-    stored = await fake_redis.get(body["master_job_id"])
+    stored = await fake_redis.get(batch_cache_key(body["master_job_id"]))
     assert json.loads(stored) == body["jobs"]
-    ttl = await fake_redis.ttl(body["master_job_id"])
+    ttl = await fake_redis.ttl(batch_cache_key(body["master_job_id"]))
     assert 0 < ttl <= CACHE_EXPIRATION
 
 
@@ -51,8 +52,8 @@ async def test_new_jobs_are_cached_per_username(client, fake_redis):
     jobs = client.post(BATCH_URL, json={"usernames": ["alice", "bob"]}).json()["jobs"]
 
     for username, info in jobs.items():
-        assert await fake_redis.get(username) == info["job_id"].encode()
-        assert 0 < await fake_redis.ttl(username) <= CACHE_EXPIRATION
+        assert await fake_redis.get(username_cache_key(username)) == info["job_id"].encode()
+        assert 0 < await fake_redis.ttl(username_cache_key(username)) <= CACHE_EXPIRATION
 
 
 def test_invalid_usernames_get_error_entries(client, fake_celery):
@@ -67,7 +68,7 @@ def test_invalid_usernames_get_error_entries(client, fake_celery):
 
 
 async def test_cached_username_is_reused_and_decoded(client, fake_redis, fake_celery):
-    await fake_redis.set("alice", CACHED_JOB_ID)
+    await fake_redis.set(username_cache_key("alice"), CACHED_JOB_ID)
 
     jobs = client.post(BATCH_URL, json={"usernames": ["alice", "bob"]}).json()["jobs"]
 
@@ -92,9 +93,6 @@ def test_duplicate_usernames_collapse_to_one_job(client, fake_celery):
     assert fake_celery.delay.call_count == 1
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: the username regex uses re.match with '$', so a trailing newline passes validation."
-))
 def test_trailing_newline_is_rejected(client, fake_celery):
     jobs = client.post(BATCH_URL, json={"usernames": ["kodama\n"]}).json()["jobs"]
 
@@ -141,12 +139,8 @@ def test_celery_failure_is_generic_500(client, fake_celery):
     assert response.status_code == 500
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: /batch reuses any cached job_id without checking its state, so a FAILED or "
-    "errored lookup is served from cache until expiry; /lookup resubmits in that case."
-))
 async def test_failed_cached_job_is_resubmitted(client, fake_redis, fake_celery):
-    await fake_redis.set("alice", CACHED_JOB_ID)
+    await fake_redis.set(username_cache_key("alice"), CACHED_JOB_ID)
     fake_celery.set(CACHED_JOB_ID, "FAILURE", info=RuntimeError("boom"))
 
     jobs = client.post(BATCH_URL, json={"usernames": ["alice"]}).json()["jobs"]

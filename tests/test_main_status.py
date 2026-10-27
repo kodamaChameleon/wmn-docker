@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from main import batch_cache_key
+
 STATUS_URL = "/api/v1/status/{}"
 JOB_ID = "11111111-2222-3333-4444-555555555555"
 RESULT = {
@@ -45,9 +47,6 @@ def test_missing_job_id_is_404(client):
     assert client.get("/api/v1/status/").status_code == 404
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: the job_id regex uses re.match with '$', so a trailing newline passes validation."
-))
 def test_job_id_with_trailing_newline_is_400(client):
     assert get_status(client, JOB_ID + "%0A").status_code == 400
 
@@ -100,10 +99,6 @@ def test_single_other_states_are_unknown(client, fake_celery, state):
     }
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: a SUCCESS task whose result is None (tasks.check_username on an exception) or [] "
-    "(username_lookup when the WMN fetch fails) hits `.get` on a non-dict and returns 500."
-))
 @pytest.mark.parametrize("result", [None, []])
 def test_single_success_with_empty_result_reports_failed(client, fake_celery, result):
     fake_celery.set(JOB_ID, "SUCCESS", result)
@@ -148,7 +143,7 @@ SUB_IDS = {
 
 
 async def store_batch(fake_redis, entries):
-    await fake_redis.set(MASTER_ID, json.dumps(entries))
+    await fake_redis.set(batch_cache_key(MASTER_ID), json.dumps(entries))
 
 
 async def test_batch_aggregates_each_state(client, fake_redis, fake_celery):
@@ -215,25 +210,17 @@ def test_single_round_trip(client, fake_celery):
 
 
 async def test_corrupt_batch_record_is_500(client, fake_redis):
-    await fake_redis.set(MASTER_ID, "{not json")
+    await fake_redis.set(batch_cache_key(MASTER_ID), "{not json")
 
     assert get_status(client, MASTER_ID).status_code == 500
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: the batch branch reuses `job_id` as its loop variable, so the response reports the "
-    "last sub-job's ID instead of the master job ID."
-))
 async def test_batch_response_reports_master_job_id(client, fake_redis):
     await store_batch(fake_redis, {"alice": {"job_id": SUB_IDS["done"], "status": "new"}})
 
     assert get_status(client, MASTER_ID).json()["job_id"] == MASTER_ID
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: a SUCCESS sub-job whose result is None or [] raises AttributeError, failing the "
-    "whole batch status request with 500."
-))
 @pytest.mark.parametrize("result", [None, []])
 async def test_batch_with_empty_result_reports_failed(client, fake_redis, fake_celery, result):
     await store_batch(fake_redis, {
@@ -249,11 +236,6 @@ async def test_batch_with_empty_result_reports_failed(client, fake_redis, fake_c
     assert response.json()["results"]["bob"]["status"] == "pending"
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: username cache keys and batch master IDs share one Redis keyspace. Looking up a "
-    "username that is itself a UUID makes /status/{that-uuid} parse the cached job ID as "
-    "batch JSON and return 500."
-))
 def test_uuid_shaped_username_does_not_break_status(client):
     client.post("/api/v1/lookup", json={"username": JOB_ID})
 

@@ -67,11 +67,11 @@ def test_create_access_token_uses_hs256():
 
 # get_current_user
 
-def test_get_current_user_returns_user_id(make_token):
-    assert authentication.get_current_user(make_token(sub="abc")) == {"user_id": "abc"}
+def test_get_current_user_returns_user_id(user_db, make_token):
+    assert authentication.get_current_user(make_token()) == {"user_id": ACTIVE_USER_ID}
 
 
-def test_get_current_user_accepts_token_without_exp(make_token):
+def test_get_current_user_accepts_token_without_exp(user_db, make_token):
     assert authentication.get_current_user(make_token(exp=None)) == {"user_id": ACTIVE_USER_ID}
 
 
@@ -102,10 +102,6 @@ def test_get_current_user_rejects_missing_sub(make_token):
     assert exc.value.status_code == 401
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: HTTPExceptions raised inside get_current_user's try block are caught by the "
-    "generic `except Exception` and replaced with 'Authentication error'."
-))
 def test_get_current_user_missing_sub_detail(make_token):
     with pytest.raises(HTTPException) as exc:
         authentication.get_current_user(make_token(sub=None))
@@ -113,15 +109,29 @@ def test_get_current_user_missing_sub_detail(make_token):
     assert exc.value.detail == "Invalid authentication credentials"
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: ACCESS_TOKEN_EXPIRATION=0 encodes exp=null; PyJWT raises TypeError on decode, "
-    "so 'never expire' tokens are always rejected."
-))
-def test_non_expiring_token_round_trip(monkeypatch):
+def test_non_expiring_token_round_trip(user_db, monkeypatch):
     monkeypatch.setattr(authentication, "ACCESS_TOKEN_EXPIRATION", 0)
-    token = authentication.create_access_token({"sub": "abc"})
+    token = authentication.create_access_token({"sub": ACTIVE_USER_ID})
 
-    assert authentication.get_current_user(token) == {"user_id": "abc"}
+    assert "exp" not in decode(token)
+    assert authentication.get_current_user(token) == {"user_id": ACTIVE_USER_ID}
+
+
+@pytest.mark.parametrize("user_id", ["no-such-user", DISABLED_USER_ID])
+def test_get_current_user_rejects_revoked_users(user_db, make_token, user_id):
+    with pytest.raises(HTTPException) as exc:
+        authentication.get_current_user(make_token(sub=user_id))
+
+    assert exc.value.status_code == 401
+    assert exc.value.detail == "Invalid authentication credentials"
+
+
+def test_get_current_user_db_error_is_401(make_token):
+    # No user database exists in this test
+    with pytest.raises(HTTPException) as exc:
+        authentication.get_current_user(make_token())
+
+    assert exc.value.status_code == 401
 
 
 # optional_auth_dependency

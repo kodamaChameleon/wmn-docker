@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 import main
+from main import username_cache_key
 from utils.config import CACHE_EXPIRATION
 
 LOOKUP_URL = "/api/v1/lookup"
@@ -17,8 +18,8 @@ async def test_new_username_creates_job_and_caches_it(client, fake_redis, fake_c
     job_id = response.json()["job_id"]
     fake_celery.delay.assert_called_once_with("kodama")
     assert job_id in fake_celery.jobs
-    assert await fake_redis.get("kodama") == job_id.encode()
-    ttl = await fake_redis.ttl("kodama")
+    assert await fake_redis.get(username_cache_key("kodama")) == job_id.encode()
+    ttl = await fake_redis.ttl(username_cache_key("kodama"))
     assert 0 < ttl <= CACHE_EXPIRATION
 
 
@@ -80,10 +81,6 @@ def test_malformed_body_is_422(client, fake_celery, body):
     fake_celery.delay.assert_not_called()
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: the username regex uses re.match with '$', which also matches before a trailing "
-    "newline, so 'name\\n' passes validation (use re.fullmatch or \\Z)."
-))
 def test_trailing_newline_is_rejected(client, fake_celery):
     response = client.post(LOOKUP_URL, json={"username": "kodama\n"})
 
@@ -98,7 +95,7 @@ def test_trailing_newline_is_rejected(client, fake_celery):
     ("SUCCESS", {"websites": [], "stats": {"websites_checked": 1}}),
 ])
 async def test_reusable_cached_job_is_returned(client, fake_redis, fake_celery, state, result):
-    await fake_redis.set("kodama", CACHED_JOB_ID)
+    await fake_redis.set(username_cache_key("kodama"), CACHED_JOB_ID)
     fake_celery.set(CACHED_JOB_ID, state, result)
 
     response = client.post(LOOKUP_URL, json={"username": "kodama"})
@@ -119,7 +116,7 @@ async def test_reusable_cached_job_is_returned(client, fake_redis, fake_celery, 
     ("RETRY", None, None),
 ])
 async def test_stale_cached_job_is_replaced(client, fake_redis, fake_celery, state, result, info):
-    await fake_redis.set("kodama", CACHED_JOB_ID)
+    await fake_redis.set(username_cache_key("kodama"), CACHED_JOB_ID)
     fake_celery.set(CACHED_JOB_ID, state, result, info)
 
     response = client.post(LOOKUP_URL, json={"username": "kodama"})
@@ -128,11 +125,11 @@ async def test_stale_cached_job_is_replaced(client, fake_redis, fake_celery, sta
     new_job_id = response.json()["job_id"]
     assert new_job_id != CACHED_JOB_ID
     fake_celery.delay.assert_called_once_with("kodama")
-    assert await fake_redis.get("kodama") == new_job_id.encode()
+    assert await fake_redis.get(username_cache_key("kodama")) == new_job_id.encode()
 
 
 async def test_cache_is_per_username(client, fake_redis, fake_celery):
-    await fake_redis.set("other", CACHED_JOB_ID)
+    await fake_redis.set(username_cache_key("other"), CACHED_JOB_ID)
 
     response = client.post(LOOKUP_URL, json={"username": "kodama"})
 
@@ -141,7 +138,7 @@ async def test_cache_is_per_username(client, fake_redis, fake_celery):
 
 
 async def test_cache_is_case_sensitive(client, fake_redis, fake_celery):
-    await fake_redis.set("Kodama", CACHED_JOB_ID)
+    await fake_redis.set(username_cache_key("Kodama"), CACHED_JOB_ID)
 
     response = client.post(LOOKUP_URL, json={"username": "kodama"})
 

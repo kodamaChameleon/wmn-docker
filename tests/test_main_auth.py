@@ -35,7 +35,7 @@ def test_missing_token_is_401(client, auth_required, fake_celery, method, path, 
 
 
 @pytest.mark.parametrize("method, path, kwargs", PROTECTED, ids=route_ids)
-def test_valid_token_is_accepted(client, auth_required, make_token, method, path, kwargs):
+def test_valid_token_is_accepted(client, auth_required, user_db, make_token, method, path, kwargs):
     response = call(client, method, path, kwargs, bearer(make_token()))
     assert response.status_code == 200
 
@@ -44,15 +44,15 @@ def test_valid_token_is_accepted(client, auth_required, make_token, method, path
 @pytest.mark.parametrize("token_kwargs, detail", [
     ({"exp": timedelta(seconds=-10)}, "Token has expired"),
     ({"key": "some-other-signing-key"}, "Invalid authentication credentials"),
-    ({"sub": None}, None),  # detail is wrong; see test_authentication
-], ids=["expired", "bad-signature", "no-sub"])
-def test_bad_token_is_401(client, auth_required, make_token, fake_celery,
+    ({"sub": None}, "Invalid authentication credentials"),
+    ({"sub": "no-such-user"}, "Invalid authentication credentials"),
+], ids=["expired", "bad-signature", "no-sub", "unknown-user"])
+def test_bad_token_is_401(client, auth_required, user_db, make_token, fake_celery,
                           method, path, kwargs, token_kwargs, detail):
     response = call(client, method, path, kwargs, bearer(make_token(**token_kwargs)))
 
     assert response.status_code == 401
-    if detail:
-        assert response.json() == {"detail": detail}
+    assert response.json() == {"detail": detail}
     fake_celery.delay.assert_not_called()
 
 
@@ -101,10 +101,6 @@ def test_auth_is_checked_before_body_validation_side_effects(client, auth_requir
     assert response.status_code == 401
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "BUG: ACCESS_TOKEN_EXPIRATION=0 is documented as 'never expire', but it encodes "
-    "exp=null, which PyJWT rejects on decode, so every such token gets a 401."
-))
 def test_non_expiring_token_is_accepted(client, auth_required, user_db, monkeypatch):
     monkeypatch.setattr(authentication, "ACCESS_TOKEN_EXPIRATION", 0)
     token = client.post(
@@ -116,10 +112,6 @@ def test_non_expiring_token_is_accepted(client, auth_required, user_db, monkeypa
     assert response.status_code == 200
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "DESIGN GAP: get_current_user only verifies the JWT signature, so tokens issued before a "
-    "user is disabled or deleted keep working until they expire."
-))
 @pytest.mark.parametrize("revoke", [users.disable_user, users.delete_user],
                          ids=["disabled", "deleted"])
 def test_revoked_user_token_is_rejected(client, auth_required, user_db, revoke):
