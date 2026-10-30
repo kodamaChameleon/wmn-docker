@@ -134,6 +134,10 @@ async def check_site(session: ClientSession, site: dict, username: str) -> Optio
                 return None
 
             if response.status == site["e_code"] and site["e_string"] in text:
+                # When found/not-found share a status code, the miss string is the only
+                # thing separating them, so require it to be absent
+                if site["e_code"] == site["m_code"] and site["m_string"] and site["m_string"] in text:
+                    return None
                 return site["name"], checked_uri
 
     except asyncio.TimeoutError:

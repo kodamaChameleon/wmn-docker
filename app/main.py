@@ -10,6 +10,7 @@ Licence:     CC BY 4.0
 """
 import re
 import json
+from typing import Optional
 from uuid import uuid4
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, status, Depends
@@ -28,6 +29,85 @@ from utils.models import UsernameLookup, BatchLookup, LoginRequest
 # Initialize redis connection
 redis_connection = redis.from_url(REDIS_URL, encoding="utf8")
 
+# Validation patterns (used with fullmatch so a trailing newline can't slip past)
+USERNAME_PATTERN = re.compile(r'[a-zA-Z0-9:/?&=#._%+-]+')
+JOB_ID_PATTERN = re.compile(r'[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}')
+
+def username_cache_key(username: str) -> str:
+    """
+    Redis key caching the lookup job for a username
+    """
+    return f"wmn:username:{username}"
+
+def batch_cache_key(master_job_id: str) -> str:
+    """
+    Redis key holding the sub-jobs of a batch lookup
+    """
+    return f"wmn:batch:{master_job_id}"
+
+def has_valid_result(result) -> bool:
+    """
+    True if a finished task returned usable lookup results
+    """
+    return isinstance(result, dict) and bool(result) and 'error' not in result
+
+async def get_reusable_job(username: str) -> Optional[str]:
+    """
+    Return the cached job_id for a username if that job is pending or succeeded,
+    otherwise None so a new job is started.
+    """
+    cached_job_id = await redis_connection.get(username_cache_key(username))
+    if not cached_job_id:
+        return None
+
+    cached_job_id = cached_job_id.decode('utf-8')
+    logger.info(f"Cache hit for username: {username}, found cached job_id: {cached_job_id}")
+    task_result = AsyncResult(cached_job_id)
+
+    # Job is still pending
+    if task_result.state == 'PENDING':
+        logger.debug(f"Cached job_id {cached_job_id} is still pending.")
+        return cached_job_id
+
+    # Results were successful without errors and returned results
+    if task_result.state == 'SUCCESS' and has_valid_result(task_result.result):
+        logger.info(f"Cached job_id {cached_job_id} completed successfully.")
+        return cached_job_id
+
+    # If the job is in FAILURE or any other state, start a new job
+    logger.warning(f"Cached job_id {cached_job_id} is no longer valid. Starting a new job.")
+    return None
+
+async def start_job(username: str) -> str:
+    """
+    Start a lookup task for a username and cache its job_id
+    """
+    task = check_username.delay(username)
+    logger.info(f"Task created with job_id: {task.id} for lookup username: {username}")
+
+    # Store the new job_id in the cache with an expiration time
+    await redis_connection.setex(username_cache_key(username), CACHE_EXPIRATION, task.id)
+    return task.id
+
+def summarize_task(task_result) -> dict:
+    """
+    Describe the state of a lookup task for status responses
+    """
+    if task_result.state == 'PENDING':
+        return {"status": "pending"}
+
+    if task_result.state == 'SUCCESS':
+        result = task_result.result
+        if has_valid_result(result):
+            return {"status": "complete", "results": result}
+        error = result.get('error', 'Unknown error') if isinstance(result, dict) else 'Unknown error'
+        return {"status": "failed", "error": error}
+
+    if task_result.state == 'FAILURE':
+        return {"status": "failed", "error": str(task_result.info)}
+
+    return {"status": "unknown", "state": task_result.state}
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     """
@@ -35,7 +115,8 @@ async def lifespan(_: FastAPI):
     """
     await FastAPILimiter.init(redis_connection)
     yield
-    await FastAPILimiter.close()
+    # FastAPILimiter.close() uses redis' deprecated close(); close the connection directly
+    await redis_connection.aclose()
 
 # Initialize the FastAPI app and FastAPILimiter
 description = """
@@ -113,40 +194,18 @@ async def submit_username(request: UsernameLookup, user: dict =  Depends(optiona
     try:
         # Validate the username
         username = request.username
-        if not re.match(r'^[a-zA-Z0-9:/?&=#._%+-]+$', username):
+        if not USERNAME_PATTERN.fullmatch(username):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Username must contain only valid URL characters."
             )
 
-        # Check if the username is in the cache
-        cached_job_id = await redis_connection.get(username)
+        # Reuse a cached job if it is still useful
+        cached_job_id = await get_reusable_job(username)
         if cached_job_id:
-            logger.info(f"Cache hit for username: {username}, found cached job_id: {cached_job_id}")
+            return {"job_id": cached_job_id}
 
-            # Check the job status of the cached job ID
-            task_result = AsyncResult(cached_job_id)
-
-            # Job is still pending
-            if task_result.state == 'PENDING':
-                logger.debug(f"Cached job_id {cached_job_id} is still pending.")
-                return {"job_id": cached_job_id}
-
-            # Results were successful without errors and returned results
-            elif task_result.state == 'SUCCESS' and task_result.result and 'error' not in task_result.result:
-                logger.info(f"Cached job_id {cached_job_id} completed successfully with result: {task_result.result}")
-                return {"job_id": cached_job_id}
-
-            # If the job is in FAILURE or any other state, start a new job
-            logger.warning(f"Cached job_id {cached_job_id} is no longer valid. Starting a new job.")
-
-        task = check_username.delay(username)
-        logger.info(f"Task created with job_id: {task.id} for lookup username: {username}")
-
-        # Store the new job_id in the cache with an expiration time
-        await redis_connection.setex(username, CACHE_EXPIRATION, task.id)
-
-        return {"job_id": task.id}
+        return {"job_id": await start_job(username)}
 
     except HTTPException as http_ex:
 
@@ -183,29 +242,23 @@ async def submit_batch_usernames(request: BatchLookup, user: dict = Depends(opti
 
         for username in usernames:
             # Validate the username format
-            if not re.match(r'^[a-zA-Z0-9:/?&=#._%+-]+$', username):
+            if not USERNAME_PATTERN.fullmatch(username):
                 batch_results[username] = {"status": "error", "detail": "Invalid username format"}
                 continue
 
-            # Check cache for existing job ID
-            cached_job_id = await redis_connection.get(username)
+            # Reuse a cached job if it is still useful
+            cached_job_id = await get_reusable_job(username)
             if cached_job_id:
-                cached_job_id = cached_job_id.decode('utf-8')  # Decode bytes to string
-                logger.info(f"Cache hit for username: {username}, using cached job_id: {cached_job_id}")
                 batch_results[username] = {"job_id": cached_job_id, "status": "cached"}
                 continue
 
             # Create a new job for the username
-            task = check_username.delay(username)
-            logger.info(f"Task created with job_id: {task.id} for username: {username}")
-
-            # Store job_id in cache
-            await redis_connection.setex(username, CACHE_EXPIRATION, task.id)
-
-            batch_results[username] = {"job_id": task.id, "status": "new"}
+            batch_results[username] = {"job_id": await start_job(username), "status": "new"}
 
         # Store the master job in Redis, referencing individual jobs
-        await redis_connection.setex(master_job_id, CACHE_EXPIRATION, json.dumps(batch_results))
+        await redis_connection.setex(
+            batch_cache_key(master_job_id), CACHE_EXPIRATION, json.dumps(batch_results)
+        )
 
         return {"master_job_id": master_job_id, "jobs": batch_results}
 
@@ -228,10 +281,7 @@ async def job_status(job_id: str, user: dict = Depends(optional_auth_dependency(
     """
     try:
         # Validate the job_id format
-        if not re.match(
-                r'^[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}$',
-                job_id
-            ):
+        if not JOB_ID_PATTERN.fullmatch(job_id):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Invalid job_id format. Must be a valid UUID."
@@ -240,7 +290,7 @@ async def job_status(job_id: str, user: dict = Depends(optional_auth_dependency(
         logger.info(f"Received request to check status for job_id: {job_id}")
 
         # Check if the job_id corresponds to a batch
-        batch_data = await redis_connection.get(job_id)
+        batch_data = await redis_connection.get(batch_cache_key(job_id))
         if batch_data:
             logger.info(f"Job ID {job_id} identified as a batch lookup.")
             batch_results = json.loads(batch_data)
@@ -248,71 +298,25 @@ async def job_status(job_id: str, user: dict = Depends(optional_auth_dependency(
             # Aggregate the status of all jobs in the batch
             aggregated_results = {}
             for username, job_info in batch_results.items():
-                job_id = job_info.get("job_id")
-                if not job_id:
+                sub_job_id = job_info.get("job_id")
+                if not sub_job_id:
                     aggregated_results[username] = {"status": "error", "detail": "Invalid job ID"}
                     continue
 
-                task_result = AsyncResult(job_id)
-                if task_result.state == 'PENDING':
-                    aggregated_results[username] = {"status": "pending"}
-                elif task_result.state == 'SUCCESS':
-                    if task_result.result and 'error' not in task_result.result:
-                        aggregated_results[username] = {
-                            "status": "complete",
-                            "results": task_result.result
-                        }
-                    else:
-                        aggregated_results[username] = {
-                            "status": "failed",
-                            "error": task_result.result.get('error', 'Unknown error')
-                        }
-                elif task_result.state == 'FAILURE':
-                    aggregated_results[username] = {
-                        "status": "failed",
-                        "error": str(task_result.info)
-                    }
-                else:
-                    aggregated_results[username] = {
-                        "status": "unknown",
-                        "state": task_result.state
-                    }
+                aggregated_results[username] = summarize_task(AsyncResult(sub_job_id))
 
             return {"job_id": job_id, "type": "batch", "results": aggregated_results}
 
         # Handle single username lookup
-        task_result = AsyncResult(job_id)
-        if task_result.state == 'PENDING':
-            logger.debug(f"Job {job_id} is still processing.")
-            return {"job_id": job_id, "status": "pending", "type": "single"}
+        summary = summarize_task(AsyncResult(job_id))
+        if summary["status"] == "failed":
+            logger.error(f"Job {job_id} failed with error: {summary['error']}")
+        elif summary["status"] == "unknown":
+            logger.warning(f"Job {job_id} is in an unknown state: {summary['state']}")
+        else:
+            logger.debug(f"Job {job_id} status: {summary['status']}")
 
-        if task_result.state == 'SUCCESS':
-            logger.info(f"Job {job_id} completed successfully with results: {task_result.result}")
-            if task_result.result and 'error' not in task_result.result:
-                return {
-                    "job_id": job_id,
-                    "status": "complete",
-                    "results": task_result.result,
-                    "type": "single"
-                }
-            return {
-                "job_id": job_id,
-                "status": "failed",
-                "error": task_result.result.get('error', 'Unknown error'),
-                "type": "single"
-            }
-
-        if task_result.state == 'FAILURE':
-            logger.error(f"Job {job_id} failed with error: {task_result.info}")
-            return {
-                "job_id": job_id,
-                "status": "failed",
-                "error": str(task_result.info),
-                "type": "single"
-            }
-
-        logger.warning(f"Job {job_id} is in an unknown state: {task_result.state}")
-        return {"job_id": job_id, "status": "unknown", "state": task_result.state, "type": "single"}
+        return {"job_id": job_id, **summary, "type": "single"}
 
     except HTTPException as http_ex:
         logger.error(f"Error while checking job status for job_id {job_id}: {http_ex.detail}")

@@ -60,11 +60,11 @@ def create_access_token(data: dict) -> jwt:
     Creates a JWT token using the provided data (e.g., user ID).
     """
     to_encode = data.copy()
+
+    # Omit the exp claim entirely for non-expiring tokens (PyJWT rejects exp=None)
     if ACCESS_TOKEN_EXPIRATION > 0:
         expire = datetime.now(timezone.utc) + timedelta(days=ACCESS_TOKEN_EXPIRATION)
         to_encode.update({"exp": expire})
-    else:
-        to_encode.update({"exp": None})
 
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -73,6 +73,7 @@ def create_access_token(data: dict) -> jwt:
 def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     """
     Extracts and verifies the JWT token, returns the user ID from the payload.
+    The user must still exist and be enabled, so revoking a user revokes their tokens.
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -92,7 +93,18 @@ def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
                 detail="Token has expired"
             )
 
+        # Revoked user (deleted or disabled since the token was issued)
+        users_data = load_user_data()
+        user = next((user for user in users_data.users if user.user_id == user_id), None)
+        if not user or user.disabled:
+            logger.error(f"Token presented for missing or disabled user {user_id}")
+            raise HTTPException(status_code=401, detail="Invalid authentication credentials")
+
         token_data = {"user_id": user_id}
+
+    # Already handled above
+    except HTTPException:
+        raise
 
     # Invalid token
     except jwt.ExpiredSignatureError:
